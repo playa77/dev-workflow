@@ -1,9 +1,9 @@
-<!-- workflow-kit | v2.0.0 | 2026-10-25 -->
+<!-- workflow-kit | v2.0.1 | 2026-10-24 | install/CI conformance -->
 # Workflow kit — architecture-first agentic delivery
 
 A self-contained method for turning an interview into agent-executed work packages that a human can verify without reading everything. The agent reads `AGENTS.md`; the method lives under `workflow/`; the scripts enforce what prose cannot.
 
-**Provenance.** The operational form of a Delivery Contract, a multi-phase architect prompt, a budget analysis, and the practice research behind the 2.0 rewrite. Version 2 removes the human-gated steps, replaces the confidence threshold with a coverage map, and adds a decision ledger and changelog as first-class artifacts.
+**Provenance.** The operational form of a Delivery Contract, a multi-phase architect prompt, a budget analysis, and the practice research behind the 2.0 rewrite. Version 2 removes the human-gated steps, replaces the confidence threshold with a coverage map, and adds a decision ledger and changelog as first-class project artifacts.
 
 ---
 
@@ -14,7 +14,7 @@ Intake → Spec (Docs 1–3) → WP → verify → merge → measure
  ≤12 Qs    one pass, one digest  execute  gates   auto*   ledger
 ```
 
-\* Automatic when every gate is green and no risk trigger fires. Risk-bearing changes still require a human; see `workflow/REVIEW.md`.
+\* Automatic when the operator has set `mode.merge: auto`, every gate is green and no risk trigger fires. `mode.merge: auto` authorises the executing agent to merge; the kit ships no merger. Risk-bearing changes still require a human; see `workflow/REVIEW.md`.
 
 Two properties make it work:
 
@@ -23,33 +23,63 @@ Two properties make it work:
 
 ## Install
 
-You do not run commands. Point the agent at this kit and say:
+Point an agent at this kit and give it this prompt:
 
-> Read `workflow/START.md` in this kit, then install the workflow into this repository.
+```
+Use the development workflow kit from:
+https://github.com/playa77/dev-workflow
 
-The agent runs `workflow/scripts/install.py`, resolves anything `doctor.py` reports, commits the result, and begins the intake interview in the same session. Install is idempotent and never overwrites `README.md`, `AGENTS.md`, `DECISIONS.md` or `CHANGELOG.md`.
+Clone the kit outside the current project directory.
 
-If you are working on the kit itself rather than installing it, `workflow/START.md` still applies.
+Read workflow/START.md in the kit and follow its installation
+instructions for the current project.
+
+First run the installer in dry-run mode and inspect its proposed
+changes. Then install the workflow, run doctor.py, and resolve
+installation issues.
+
+Do not overwrite existing project instructions or documentation.
+Do not enable automatic merging without my approval.
+
+Once installed, begin the workflow's intake phase.
+```
+
+The installer runs `python3 <kit>/workflow/scripts/install.py --target . --dry-run` first and prints the plan without writing. A real install then:
+
+- copies the method into `workflow/`;
+- installs the full constitution as `workflow/CONSTITUTION.md`, and uses it as `AGENTS.md` when the project has none;
+- merges a marker block into an existing `AGENTS.md` and appends a pointer block to `README.md` — it never replaces either;
+- writes `DECISIONS.md` and `CHANGELOG.md` from the seeds only when absent;
+- detects the stack and writes `workflow/config.json`;
+- generates `.github/workflows/wp.yml` and snapshots the test baseline.
+
+Install is idempotent. It never overwrites `README.md`, `AGENTS.md`, `DECISIONS.md` or `CHANGELOG.md`. A CI file that does not carry the generated marker is left untouched; a generated one is re-rendered on upgrade.
+
+`--upgrade` updates kit-owned files while **preserving** project edits in `workflow/config.json`: it fills only command roles that are missing or unset, and keeps `mode`, `risk_triggers` and `integrity` as the project set them. Use `--reset-config` to deliberately regenerate the file.
+
+A new install writes `mode.merge: human`. Automatic merging is enabled with `--merge-mode auto`, or by editing `workflow/config.json` later with the operator's approval.
+
+**This repository is the kit source.** It carries no `DECISIONS.md` or `CHANGELOG.md` of its own: those are created in a project when the kit is installed, and `doctor.py` distinguishes the two layouts (`workflow/state/install.json` records `"kit": true` here).
 
 ## File map
 
 | Path | What it is |
 |---|---|
-| `AGENTS.md` | Constitution: delivery unit, execution policy, prohibitions |
-| `DECISIONS.md` | Decision ledger with a generated index; rejected options live inside the entry that rejected them |
-| `CHANGELOG.md` | Curated, user-visible changes; every line cites a decision and a work package |
+| `AGENTS.md` | The constitution: delivery unit, execution policy, prohibitions. Installs as `workflow/CONSTITUTION.md` and, on a project with no `AGENTS.md`, as that file. |
 | `workflow/START.md` | The single entrypoint: install, bootstrap, phase state machine |
 | `workflow/WORKFLOW.md` | Phases, gates, roles, artifact authority, WP lifecycle |
 | `workflow/VERIFICATION.md` | Test-integrity mechanisms, declaration guards, validation matrix |
 | `workflow/STATE.md` | `intake.json`, `progress.md`, `state.json`, resume protocol |
-| `workflow/REVIEW.md` | Risk triggers, the small non-delegable list, milestone audit |
+| `workflow/REVIEW.md` | Risk triggers, the merge procedure, the small non-delegable list, milestone audit |
 | `workflow/MEASUREMENT.md` | Telemetry, calibration ledger, retro |
 | `workflow/config.json` | Commands and modes, generated at install |
 | `workflow/prompts/` | `intake`, `spec`, `execute`, `verify` |
 | `workflow/references/` | Section templates loaded on demand |
-| `workflow/templates/` | WP brief, delivery declaration, digest, checkpoints |
-| `workflow/scripts/` | Installer, doctor, gates, ledger and changelog checks, stats |
-| `.github/workflows/wp.yml` | CI lanes, fail-closed |
+| `workflow/templates/` | WP brief, delivery declaration, digest, checkpoints, and the seeded `DECISIONS.md` / `CHANGELOG.md` |
+| `workflow/scripts/` | Installer, doctor, gates, ledger and changelog checks, risk scan, stats |
+| `.github/workflows/wp.yml` | CI lanes for the kit itself; the template written into projects is in `workflow/scripts/install.py` |
+
+Project artifacts created at install: `DECISIONS.md` (one append-only ledger with a generated index) and `CHANGELOG.md` (curated, user-visible changes, every line citing a decision and a work package).
 
 ## Design rules
 
@@ -60,13 +90,22 @@ If you are working on the kit itself rather than installing it, `workflow/START.
 5. **Review is the constraint, not context.** A package that cannot be reviewed in one pass is too large.
 6. **Decisions are load-bearing.** The ledger is read before any approach is proposed; an entry exists when a choice constrains future work.
 
+## What changed in 2.0.1
+
+- The installer transfers the full constitution (`workflow/CONSTITUTION.md`, and `AGENTS.md` itself on a project that has none) instead of only a short instruction block.
+- CI runs `risk-scan.py --fail-on-trigger`. A trigger fails the gates job, so a risk-bearing pull request cannot merge green, and the job labels it `needs-human`.
+- `--upgrade` preserves `workflow/config.json`; `--reset-config` is the explicit way to discard project edits.
+- New installs default to `mode.merge: human`; `--merge-mode auto` is an explicit opt-in.
+- `doctor.py` distinguishes the kit repository from an installed project. The kit no longer carries a ledger or changelog of its own.
+- A generated CI file is re-rendered on upgrade; a hand-edited one is left alone and reported.
+
 ## What changed in 2.0
 
 - Install, command setup, baseline and bootstrap are agent steps. One entrypoint, no human shell.
 - The interview exits on a countable coverage map, not a confidence percentage.
 - Docs 1–3 are generated in one pass; the human approves a one-page digest.
 - Human input is limited to the interview, the digest and risk-triggered review.
-- Merge is automatic on green with risk triggers; CI lanes are generated from `workflow/config.json`.
+- Merge is automatic on green with risk triggers; the full-suite lane is rendered from `workflow/config.json` at install.
 - `DECISIONS.md` and `CHANGELOG.md` are method artifacts, correlated by ID and checked in CI.
 - `HUMAN-REVIEW.md`, the per-document approvals, the operator checklist and the manual command table are gone.
 
@@ -76,4 +115,6 @@ If you are working on the kit itself rather than installing it, `workflow/START.
 - **Structural checks are not semantics.** `check-spec.py` verifies seams, types, callers and coverage structurally; a spec can pass and still be wrong.
 - **Mutation testing** is specified but not implemented; `workflow/VERIFICATION.md` §2.3 states the scope policy and hook point.
 - **Review quality is not mechanisable.** Risk triggers and milestone sampling are the defence; they depend on the operator actually looking.
-- **The ledger assumes tens of decisions per project.** Past ~150 entries, revisit D-015.
+- **No merge runner.** `mode.merge: auto` is a permission, not a daemon. The executing agent performs the merge sequence in `workflow/REVIEW.md` §1.1 after CI is green; nothing in the kit can merge a pull request by itself.
+- **Verifier separation is host-provided.** The method requires a fresh-context verifier but cannot spawn one. The host agent must start a new context (a subagent or a new session) and give it only the brief, the diff and the command output.
+- **The ledger assumes tens of decisions per project.** Past ~150 entries, the single-file ledger design needs revisiting.

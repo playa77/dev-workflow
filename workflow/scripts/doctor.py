@@ -5,7 +5,14 @@ Usage:
     python3 workflow/scripts/doctor.py [--root .] [--quiet]
 
 Exit 0 only when every required file is present, the configuration resolves,
-the ledger and changelog validate, and CI is installed.
+the ledger and changelog validate (in an installed project), and CI is installed.
+
+Two layouts are recognised:
+  * an installed project — root AGENTS.md carries only a workflow block and the
+    project owns DECISIONS.md and CHANGELOG.md;
+  * the kit repository itself — `workflow/state/install.json` records
+    `"kit": true`; it ships the installer and the artifact templates instead of
+    a ledger and changelog of its own.
 """
 
 from __future__ import annotations
@@ -16,17 +23,36 @@ import subprocess
 import sys
 from pathlib import Path
 
-REQUIRED = [
-    "AGENTS.md", "DECISIONS.md", "CHANGELOG.md",
+COMMON = [
+    "AGENTS.md",
     "workflow/START.md", "workflow/WORKFLOW.md", "workflow/VERIFICATION.md",
     "workflow/STATE.md", "workflow/REVIEW.md", "workflow/MEASUREMENT.md",
     "workflow/config.json", "workflow/VERSION",
 ]
 
+PROJECT_ONLY = [
+    "DECISIONS.md", "CHANGELOG.md", "workflow/CONSTITUTION.md",
+]
 
-def run(script: Path, *args: str) -> tuple[int, str]:
+KIT_ONLY = [
+    "workflow/scripts/install.py", "workflow/scripts/risk-scan.py",
+    "workflow/templates/DECISIONS.seed.md", "workflow/templates/CHANGELOG.seed.md",
+]
+
+
+def is_kit(root: Path) -> bool:
+    state = root / "workflow" / "state" / "install.json"
+    if state.exists():
+        try:
+            return json.loads(state.read_text(encoding="utf-8")).get("kit") is True
+        except json.JSONDecodeError:
+            return False
+    return False
+
+
+def run(script: Path, cwd: Path, *args: str) -> tuple[int, str]:
     proc = subprocess.run([sys.executable, str(script), *args],
-                          capture_output=True, text=True)
+                          cwd=cwd, capture_output=True, text=True)
     return proc.returncode, (proc.stdout + proc.stderr).strip()
 
 
@@ -39,22 +65,28 @@ def main(argv: list[str]) -> int:
     root = Path(args.root).resolve()
     problems: list[str] = []
     notes: list[str] = []
+    kit = is_kit(root)
 
-    for rel in REQUIRED:
+    required = COMMON + (KIT_ONLY if kit else PROJECT_ONLY)
+    for rel in required:
         if not (root / rel).exists():
-            problems.append(f"missing {rel}")
+            hint = " (run install.py --upgrade)" if rel == "workflow/CONSTITUTION.md" else ""
+            problems.append(f"missing {rel}{hint}")
 
     agents = root / "AGENTS.md"
     if agents.exists() and "workflow/START.md" not in agents.read_text(encoding="utf-8"):
         problems.append("AGENTS.md does not point at workflow/START.md")
 
     scripts = root / "workflow" / "scripts"
-    for name in ("check-config.py", "check-ledger.py", "check-changelog.py"):
+    checks = ["check-config.py"]
+    if not kit:
+        checks += ["check-ledger.py", "check-changelog.py"]
+    for name in checks:
         script = scripts / name
         if not script.exists():
             problems.append(f"missing workflow/scripts/{name}")
             continue
-        code, out = run(script)
+        code, out = run(script, root)
         if code != 0:
             problems.append(out.replace("\n", "; "))
 
@@ -76,6 +108,10 @@ def main(argv: list[str]) -> int:
     baseline = root / "workflow" / "state" / "test-baseline.json"
     if not baseline.exists():
         notes.append("no test baseline (fine before the repository has tests)")
+
+    if kit:
+        notes.append("kit repository: DECISIONS.md and CHANGELOG.md are created "
+                     "in projects at install, not tracked here")
 
     state = root / "workflow" / "state" / "install.json"
     if state.exists():

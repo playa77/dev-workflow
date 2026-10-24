@@ -1,4 +1,4 @@
-<!-- review-spec | v2.0.0 | 2026-10-25 | risk-triggered; milestone audit -->
+<!-- review-spec | v2.0.1 | 2026-10-24 | risk-triggered; CI-enforced; merge procedure -->
 # Review — what the human actually reads
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** operator, verifier · **Normative for:** the human review gate
@@ -11,7 +11,7 @@ The failure it prevents: generation becomes faster than reading, and the operato
 
 ## 1. When a human is required
 
-A human reads a diff when any of these is true — `risk-scan.py` computes it from the diff, and the PR is labelled `needs-human`:
+A human reads a diff when any of these is true — `risk-scan.py` computes it from the diff, CI fails the pull request, and the PR is labelled `needs-human`:
 
 | Trigger | Why |
 |---|---|
@@ -26,6 +26,19 @@ A human reads a diff when any of these is true — `risk-scan.py` computes it fr
 | `AGENTS.md`, `DECISIONS.md`, `workflow/` | the method must not be edited by the thing it governs |
 
 Everything else merges on green.
+
+### 1.1 How the trigger is enforced, and what "merge" means
+
+`workflow/scripts/risk-scan.py --base <base> --fail-on-trigger` exits non-zero when any trigger fires. CI runs exactly that command on every pull request — `install.py` renders the lane — so a triggered PR cannot be green. The job also adds the `needs-human` label; the label is a convenience, the failing check is the enforcement. Labelling needs `pull-requests: write`, so it is best-effort on pull requests opened from forks.
+
+The kit ships no merge runner. `mode.merge: auto` is a permission for the executing agent, not a daemon. The agent merges only when all of these hold:
+
+1. every CI lane is green on the exact head being merged;
+2. the verifier returned `pass` with evidence for each acceptance criterion;
+3. `python3 workflow/scripts/risk-scan.py --base <base> --fail-on-trigger` exits 0 on that head;
+4. `check-declaration.py` passes on the PR body.
+
+Then merge with `gh pr merge --squash --delete-branch`. A condition that cannot be checked is not met. `mode.merge: human` stops after condition 4 and waits for the operator. A trigger under either mode stops before the merge.
 
 ## 2. What to read when triggered
 
@@ -82,3 +95,4 @@ Accepting means you can explain this change to someone else without asking an ag
 |---|---|---|
 | 1.0.0 | 2026-10-24 | Initial human-review protocol (all diffs). |
 | 2.0.0 | 2026-10-25 | Review is risk-triggered plus milestone sampling; non-delegable list narrowed; time budget scaled to triggers. |
+| 2.0.1 | 2026-10-24 | States how CI enforces the trigger (`--fail-on-trigger`) and what `mode.merge: auto` authorises, since no merge runner ships. |

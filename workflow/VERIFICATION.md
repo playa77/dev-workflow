@@ -1,4 +1,4 @@
-<!-- verification-spec | v2.0.0 | 2026-10-25 | transitions delegated; risk triggers; structural gates -->
+<!-- verification-spec | v2.0.1 | 2026-10-24 | transitions delegated; risk triggers; structural gates -->
 # Verification — mechanisms, gates and proof
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** executor, verifier, CI · **Normative for:** how verification is performed and what counts as evidence
@@ -73,7 +73,7 @@ These establish that the declaration is complete and the execution happened. The
 
 ## 4. Risk triggers
 
-`workflow/scripts/risk-scan.py --base <ref>` classifies the diff and exits `requires_human: true` for:
+`workflow/scripts/risk-scan.py --base <ref>` classifies the diff and reports `requires_human: true` — a non-zero exit when run with `--fail-on-trigger` — for:
 
 - auth, authz, crypto paths;
 - migrations, schema changes, data deletion;
@@ -85,7 +85,7 @@ These establish that the declaration is complete and the execution happened. The
 - any modified, renamed, deleted or newly skipped test;
 - any change to `AGENTS.md`, `DECISIONS.md` or `workflow/`.
 
-A trigger blocks automatic merge and requests review under `workflow/REVIEW.md`. A trigger list that fires constantly means the repository should set `mode.merge: human` by evidence, not by policy.
+A trigger blocks automatic merge and requests review under `workflow/REVIEW.md`. CI runs `risk-scan.py --fail-on-trigger` on every pull request, so a trigger fails the gates job rather than merely being reported; the job also applies the `needs-human` label. A trigger list that fires constantly means the repository should set `mode.merge: human` by evidence, not by policy.
 
 ## 5. Proportional validation
 
@@ -140,3 +140,4 @@ The residual risk — a well-formed artifact that is wrong — is the verifier's
 |---|---|---|
 | 1.0.0 | 2026-10-24 | Initial. |
 | 2.0.0 | 2026-10-25 | Exceptions delegated to the agent except on risk-triggered surfaces; adds risk triggers and structural gates; paths updated. |
+| 2.0.1 | 2026-10-24 | The risk scan is fail-closed in CI (`--fail-on-trigger`), not advisory. |

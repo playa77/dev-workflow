@@ -82,11 +82,12 @@ Verdict: `<pass | fail | needs-evidence>`
 
 ## 11. Risk scan
 
-Output of `python3 workflow/scripts/risk-scan.py --base <base>`:
+Output of `python3 workflow/scripts/risk-scan.py --base <base> --fail-on-trigger`:
 
 ```
 <triggers: none | list>
 requires_human: <true | false>
+exit: <0 | 1>
 ```
 
-If `requires_human` is true, the PR carries `needs-human` and is not merged automatically.
+If `requires_human` is true, the CI risk lane fails, the PR is labelled `needs-human`, and it is not merged automatically.

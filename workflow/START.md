@@ -1,4 +1,4 @@
-<!-- start-here | v2.0.0 | 2026-10-25 | single entrypoint -->
+<!-- start-here | v2.0.1 | 2026-10-24 | single entrypoint; constitution transfer; CI risk gate -->
 # START — install, bootstrap, and the phase state machine
 
 This is the only file an operator needs to point an agent at. It says what to do first, what to read next, and when to stop.
@@ -15,17 +15,21 @@ This is the only file an operator needs to point an agent at. It says what to do
 
 ## 1. Install (agent, no operator commands)
 
-1. Run `python3 <kit>/workflow/scripts/install.py --target .`, where `<kit>` is the path to the kit you were given (`.` when the kit is already this repository).
-   - It copies the method into `workflow/`, merges a marker block into `AGENTS.md`, appends a pointer block to `README.md` (never replaces either), detects the stack, writes `workflow/config.json`, generates `.github/workflows/wp.yml`, writes the test baseline, and records `workflow/state/install.json`.
-   - `--dry-run` prints the plan; `--upgrade` updates kit-owned files while preserving `config.json`, `DECISIONS.md`, `CHANGELOG.md`, `state/` and `process/`.
-2. Run `python3 workflow/scripts/doctor.py`.
+1. Run the installer in dry-run first and read the plan:
+   `python3 <kit>/workflow/scripts/install.py --target . --dry-run`, where `<kit>` is the path to the kit you were given (`.` when the kit is already this repository).
+   - It lists every file and marker block it would write and writes nothing. If the plan would replace project content, stop and report it rather than proceeding.
+2. Run the same command without `--dry-run`.
+   - It copies the method into `workflow/`, installs the constitution as `workflow/CONSTITUTION.md` (and as `AGENTS.md` when the project has none), merges a marker block into an existing `AGENTS.md`, appends a pointer block to `README.md` (never replaces either), seeds `DECISIONS.md` and `CHANGELOG.md` only if absent, detects the stack, writes `workflow/config.json`, generates `.github/workflows/wp.yml`, writes the test baseline, and records `workflow/state/install.json`.
+   - `--upgrade` updates kit-owned files and preserves `config.json` edits, `DECISIONS.md`, `CHANGELOG.md`, `state/` and `process/`; in the configuration it fills only command roles that are missing or unset. `--reset-config` is the explicit way to regenerate the file.
+   - A new install writes `mode.merge: human`. Do not switch it to `auto` without the operator's approval; propose the change in the digest (§3).
+3. Run `python3 workflow/scripts/doctor.py`.
    - Resolve every failure **inside `workflow/`**. If a command role cannot be detected, inspect the repository's Makefile, `package.json`, CI history and lockfiles, run the cheap candidates to confirm they work, and write the verified command into `workflow/config.json`. Do not hand this to the operator.
-3. Commit on `chore/workflow-init` with a Conventional Commit message. Open a PR and merge per `workflow/config.json` mode. The install touches `AGENTS.md`, `README.md` and `.github/`, so a risk trigger may apply — if it does, request review and wait.
-4. Continue to §2 in the same session. Do not stop to ask whether to begin.
+4. Commit on `chore/workflow-init` with a Conventional Commit message. Open a PR and merge per `workflow/config.json` mode. The install touches `AGENTS.md`, `README.md` and `.github/`, so the risk scan will fire — request review and wait for it.
+5. Continue to §2 in the same session. Do not stop to ask whether to begin.
 
 ## 2. Read order
 
-1. `AGENTS.md` — rules. They override every prompt.
+1. `AGENTS.md`, then `workflow/CONSTITUTION.md` — rules. They override every prompt.
 2. `DECISIONS.md` — read the index; search for anything the brief touches.
 3. `workflow/WORKFLOW.md` — phases and gates.
 4. The phase prompt in `workflow/prompts/`.
@@ -39,7 +43,7 @@ Prompt: `workflow/prompts/intake.md`.
 - Recon first: answer every topic you can from the repository, the brief and git history, with a file path as evidence.
 - Ask at most twelve questions for a project, in rounds of up to three, each answerable by a letter or one line, each with a recommended answer and the cost of getting it wrong.
 - Write `workflow/state/intake.json` (schema in `workflow/STATE.md` §1). The phase exits when `open == 0` and `check-intake.py` passes.
-- Write the one-page digest to `docs/process/DIGEST.md`. **Stop here and wait for the operator.** That approval is the only approval before execution.
+- Write the one-page digest to `docs/process/DIGEST.md`. **Stop here and wait for the operator.** That approval is the only approval before execution. It also carries one line of merge mode: `human` or `auto`. Propose `auto` only with the operator's explicit approval, then set it in `workflow/config.json`.
 
 ## 4. Spec pass
 
@@ -59,9 +63,9 @@ For each package, in dependency order:
 2. Prompt: `workflow/prompts/execute.md`. Preflight is read-only; if the boundary is wrong, report before writing code.
 3. Implement, test, checkpoint (`progress.md`, `state.json`).
 4. Prompt: `workflow/prompts/verify.md` in a fresh context. The verifier does not fix code.
-5. `python3 workflow/scripts/risk-scan.py --base main` — if `requires_human`, stop and request review.
+5. `python3 workflow/scripts/risk-scan.py --base main --fail-on-trigger` — a non-zero exit (the JSON also reports `requires_human`) means stop and request review. CI runs the same command, so the trigger also fails the pull request.
 6. `python3 workflow/scripts/close-wp.py --wp WP-nnn --base main` — appends the changelog line, regenerates the ledger index, validates both, writes the declaration.
-7. Merge per config. Do not start the next package in the same turn unless the operator asked for a batch.
+7. Merge per `workflow/config.json` mode, following `workflow/REVIEW.md` §1.1. `auto` permits the merge only after every lane is green and no trigger fired; nothing in the kit merges by itself. Do not start the next package in the same turn unless the operator asked for a batch.
 
 ## 6. When something blocks
 

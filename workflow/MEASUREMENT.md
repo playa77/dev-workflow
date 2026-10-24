@@ -1,4 +1,4 @@
-<!-- measurement-spec | v2.0.0 | 2026-10-25 | agent-generated ledger; no operator memory -->
+<!-- measurement-spec | v2.0.1 | 2026-10-24 | agent-generated ledger; no operator memory -->
 # Measurement — calibration, digest, retro
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** agent writes, operator reads at milestones · **Normative for:** per-WP telemetry, calibration, retro
@@ -63,7 +63,7 @@ At each milestone (three merged WPs, then every milestone in the roadmap), the a
 3. **What did we stop doing?** Any step performed mechanically for three WPs with no decision riding on it. Retire it or say why it stays.
 4. **Did the ledger stay useful?** Entries added, entries read (by citation), entries superseded. A ledger nobody cites is not load-bearing.
 
-The operator reads this page at the milestone. That is the review cadence in D-012.
+The operator reads this page at the milestone. That is the review cadence in `workflow/REVIEW.md` §3.
 
 ## 5. What this process refuses to measure
 
@@ -87,3 +87,4 @@ The operator reads this page at the milestone. That is the review cadence in D-0
 |---|---|---|
 | 1.0.0 | 2026-10-24 | Initial. |
 | 2.0.0 | 2026-10-25 | Agent-generated rows; risk-trigger field; milestone digest replaces the operator-answered retro. |
+| 2.0.1 | 2026-10-24 | Milestone cadence points at `workflow/REVIEW.md` §3 instead of a decision id the project ledger does not contain. |

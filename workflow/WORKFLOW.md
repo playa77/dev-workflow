@@ -1,4 +1,4 @@
-<!-- workflow-spec | v2.0.0 | 2026-10-25 | human gates collapsed; gates are checks; workflow/ layout -->
+<!-- workflow-spec | v2.0.1 | 2026-10-24 | human gates collapsed; gates are checks; workflow/ layout -->
 # The Workflow — normative process specification
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** operator, architect, executor, verifier · **Normative for:** phases, gates, roles, artifact authority, WP lifecycle
@@ -23,6 +23,8 @@ A zero-context coding agent can implement a work package correctly, and a human 
 
 Human-only decisions: the intake answers, the digest approval, risk acceptance on a trigger, and changes to `AGENTS.md`, this document, or `DECISIONS.md` entries that were adopted by the operator. Everything else is agent work or a script.
 
+The verifier's separation is real only if the context is: no script can create one. The host agent starts a subagent or a new session and hands it the brief, the diff and the command output — not this conversation.
+
 ## 3. Terminology
 
 | Term | Meaning |
@@ -41,7 +43,7 @@ Human-only decisions: the intake answers, the digest approval, risk acceptance o
 
 | Artifact | Path | Authority | Versioned |
 |---|---|---|---|
-| Constitution | `AGENTS.md` | Delivery unit, execution policy, prohibitions | yes |
+| Constitution | `AGENTS.md` | Delivery unit, execution policy, prohibitions; installed verbatim as `workflow/CONSTITUTION.md` | yes |
 | Process | `workflow/WORKFLOW.md` | Phases, gates, roles, lifecycle | yes |
 | Decisions | `DECISIONS.md` | Irreversible choices, rejected options, revisit conditions | append-only |
 | Changelog | `CHANGELOG.md` | User-visible changes, one line per change | per release |
@@ -87,9 +89,9 @@ Order is fixed:
 
 1. machine gates (`workflow/VERIFICATION.md`, CI);
 2. fresh-context verifier (`workflow/prompts/verify.md`);
-3. risk scan (`workflow/scripts/risk-scan.py`);
+3. risk scan (`workflow/scripts/risk-scan.py --fail-on-trigger`; CI runs the same command);
 4. human review **only if the scan triggers**, otherwise at the milestone audit (`workflow/REVIEW.md`);
-5. merge per `workflow/config.json` mode.
+5. merge per `workflow/config.json` mode, under the procedure in `workflow/REVIEW.md` §1.1 — `auto` is a permission for the executing agent, not a runner.
 
 **Gate:** verification clean or every exception recorded; verifier `pass`; no unresolved risk trigger.
 
@@ -169,3 +171,4 @@ An unresolved role fails closed at the pre-merge gate. It never silently skips.
 |---|---|---|
 | 1.0.0 | 2026-10-24 | Initial process specification. |
 | 2.0.0 | 2026-10-25 | Human gates collapsed to intake, digest and risk triggers; all other gates are checks. Adds close/measure, ledger and changelog authority, and command roles. |
+| 2.0.1 | 2026-10-24 | Risk scan is fail-closed; merge is a documented agent procedure, not a runner. |
