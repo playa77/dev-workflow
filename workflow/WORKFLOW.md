@@ -1,4 +1,4 @@
-<!-- workflow-spec | v2.0.1 | 2026-10-24 | human gates collapsed; gates are checks; workflow/ layout -->
+<!-- workflow-spec | v2.1.0 | 2026-10-24 | human gates collapsed; review-aware risk gate; workflow/ layout -->
 # The Workflow — normative process specification
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** operator, architect, executor, verifier · **Normative for:** phases, gates, roles, artifact authority, WP lifecycle
@@ -89,7 +89,7 @@ Order is fixed:
 
 1. machine gates (`workflow/VERIFICATION.md`, CI);
 2. fresh-context verifier (`workflow/prompts/verify.md`);
-3. risk scan (`workflow/scripts/risk-scan.py --fail-on-trigger`; CI runs the same command);
+3. risk gate (`workflow/scripts/risk-gate.py`; CI publishes its verdict as the `risk-gate` status on the head commit and re-runs on review events);
 4. human review **only if the scan triggers**, otherwise at the milestone audit (`workflow/REVIEW.md`);
 5. merge per `workflow/config.json` mode, under the procedure in `workflow/REVIEW.md` §1.1 — `auto` is a permission for the executing agent, not a runner.
 
@@ -172,3 +172,4 @@ An unresolved role fails closed at the pre-merge gate. It never silently skips.
 | 1.0.0 | 2026-10-24 | Initial process specification. |
 | 2.0.0 | 2026-10-25 | Human gates collapsed to intake, digest and risk triggers; all other gates are checks. Adds close/measure, ledger and changelog authority, and command roles. |
 | 2.0.1 | 2026-10-24 | Risk scan is fail-closed; merge is a documented agent procedure, not a runner. |
+| 2.1.0 | 2026-10-24 | The risk gate is review-aware: blocked until an authorized approval on the exact head commit, re-evaluated on review events. |

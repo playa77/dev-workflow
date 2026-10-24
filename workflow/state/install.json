@@ -1,5 +1,5 @@
 {
-  "version": "2.0.1",
+  "version": "2.1.0",
   "target": "/home/daniel/projects/dev-workflow",
   "kit": true,
   "stack": "python",
@@ -7,5 +7,5 @@
   "blocks": {
     "config": "kept"
   },
-  "installed_at": "2026-10-24T17:32:42+00:00"
+  "installed_at": "2026-10-24T17:49:32+00:00"
 }

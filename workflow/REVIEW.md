@@ -1,4 +1,4 @@
-<!-- review-spec | v2.0.1 | 2026-10-24 | risk-triggered; CI-enforced; merge procedure -->
+<!-- review-spec | v2.1.0 | 2026-10-24 | review-aware gate; CI-enforced; merge procedure -->
 # Review — what the human actually reads
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** operator, verifier · **Normative for:** the human review gate
@@ -11,7 +11,7 @@ The failure it prevents: generation becomes faster than reading, and the operato
 
 ## 1. When a human is required
 
-A human reads a diff when any of these is true — `risk-scan.py` computes it from the diff, CI fails the pull request, and the PR is labelled `needs-human`:
+A human reads a diff when any of these is true — `risk-scan.py` computes it from the diff, the CI risk gate blocks, and the gate records `risk-gate` on the head commit:
 
 | Trigger | Why |
 |---|---|
@@ -27,18 +27,46 @@ A human reads a diff when any of these is true — `risk-scan.py` computes it fr
 
 Everything else merges on green.
 
-### 1.1 How the trigger is enforced, and what "merge" means
+### 1.1 The gate: no risk, or an approval for the exact revision
 
-`workflow/scripts/risk-scan.py --base <base> --fail-on-trigger` exits non-zero when any trigger fires. CI runs exactly that command on every pull request — `install.py` renders the lane — so a triggered PR cannot be green. The job also adds the `needs-human` label; the label is a convenience, the failing check is the enforcement. Labelling needs `pull-requests: write`, so it is best-effort on pull requests opened from forks.
+`workflow/scripts/risk-gate.py` decides, and publishes the decision as a commit status:
+
+| Risk trigger | Valid approval on the head commit | Verdict | `risk-gate` |
+|---|---|---|---|
+| none | irrelevant | `pass` | success |
+| any | no | `blocked` | failure |
+| any | yes | `approved` | success |
+
+A valid approval is a review that:
+
+1. is the reviewer's **latest** review on the pull request — a later `CHANGES_REQUESTED` or a dismissal voids it, a later plain comment does not;
+2. is `APPROVED`;
+3. carries `commit_id` equal to the head commit. A new push needs a new approval; an approval of an earlier revision never carries forward;
+4. comes from someone other than the pull request author, and not from a bot;
+5. comes from a login in `review.approvers`, or, when that list is empty, from a collaborator with `write`, `maintain` or `admin` permission.
+
+One valid approval satisfies the risk gate. Branch protection's separate "require approvals" rules, if enabled, still apply on top.
+
+CI runs the gate on two triggers: `pull_request` (opened, synchronize, reopened, ready_for_review) and `pull_request_review` (submitted, dismissed). A review approval therefore re-evaluates the gate **without a new commit** and flips the status. The status context is `review.status_context` (default `risk-gate`).
+
+**Branch protection must require that status.** The workflow run's own job is not the gate: on a review event the run is attached to the pull request merge commit, and its check cannot clear a failure recorded against the head. The commit status is the only object that carries the decision for the revision under review. This is a one-time repository setting, listed in the install steps.
+
+The gate itself runs from the pull request's merge commit, so a change to `.github/**` can alter it. That change is a `ci` risk trigger and must be read in the diff; a gate that a pull request can rewrite is only as strong as the review of that hunk.
+
+Two consequences worth stating plainly:
+
+- **Fork pull requests get a read-only `GITHUB_TOKEN`**, so the gate cannot publish a status there. The required status never appears and the PR stays blocked rather than merging unreviewed. The kit assumes branches in the same repository, which is how the agent workflow operates.
+- **A dismissed or superseded approval blocks again on the next evaluation.** There is no "approved forever" state.
+- **Authorization is as strong as the permission model.** A machine account with write access is indistinguishable from a human; name the humans in `review.approvers` when that distinction matters.
 
 The kit ships no merge runner. `mode.merge: auto` is a permission for the executing agent, not a daemon. The agent merges only when all of these hold:
 
-1. every CI lane is green on the exact head being merged;
+1. every required CI check is green on the exact head being merged;
 2. the verifier returned `pass` with evidence for each acceptance criterion;
-3. `python3 workflow/scripts/risk-scan.py --base <base> --fail-on-trigger` exits 0 on that head;
+3. `gh pr checks` shows `risk-gate` passing on that head (or the statuses API reports `success` for the context);
 4. `check-declaration.py` passes on the PR body.
 
-Then merge with `gh pr merge --squash --delete-branch`. A condition that cannot be checked is not met. `mode.merge: human` stops after condition 4 and waits for the operator. A trigger under either mode stops before the merge.
+Then merge with `gh pr merge --squash --delete-branch`. A condition that cannot be checked is not met. `mode.merge: human` stops after condition 4 and waits for the operator. A blocked gate under either mode stops before the merge.
 
 ## 2. What to read when triggered
 
@@ -96,3 +124,4 @@ Accepting means you can explain this change to someone else without asking an ag
 | 1.0.0 | 2026-10-24 | Initial human-review protocol (all diffs). |
 | 2.0.0 | 2026-10-25 | Review is risk-triggered plus milestone sampling; non-delegable list narrowed; time budget scaled to triggers. |
 | 2.0.1 | 2026-10-24 | States how CI enforces the trigger (`--fail-on-trigger`) and what `mode.merge: auto` authorises, since no merge runner ships. |
+| 2.1.0 | 2026-10-24 | The gate is review-aware: an authorized approval of the exact head commit flips the `risk-gate` status; branch protection must require it. |

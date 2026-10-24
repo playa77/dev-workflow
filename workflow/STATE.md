@@ -102,7 +102,7 @@ Rules: update at milestones and before an interruption; a criterion is checked o
 | `decisions` | IDs added or relied on by this package; `check-changelog.py` resolves them |
 | `criteria[].passes` | True only with non-null `evidence` |
 | `verification.result` | `pass` \| `fail` \| `not-run` |
-| `risk` | Output of `risk-scan.py` at close |
+| `risk` | Output of `risk-gate.py` at close (`pass` / `blocked` / `approved`) |
 | `blockers` | Each names the blocker and what would unblock it |
 
 Invariants: every brief criterion appears with the same id; no `passes: true` with null evidence; `verified` implies all pass and verification `pass`; `revision` reachable from `branch`; `user_visible` is a boolean and `decisions` is a list of valid ids; `user_visible` true implies a changelog line exists after close. `check-state.py` enforces these.

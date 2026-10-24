@@ -1,4 +1,4 @@
-<!-- verification-spec | v2.0.1 | 2026-10-24 | transitions delegated; risk triggers; structural gates -->
+<!-- verification-spec | v2.1.0 | 2026-10-24 | transitions delegated; review-aware risk gate; structural gates -->
 # Verification — mechanisms, gates and proof
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** executor, verifier, CI · **Normative for:** how verification is performed and what counts as evidence
@@ -85,7 +85,7 @@ These establish that the declaration is complete and the execution happened. The
 - any modified, renamed, deleted or newly skipped test;
 - any change to `AGENTS.md`, `DECISIONS.md` or `workflow/`.
 
-A trigger blocks automatic merge and requests review under `workflow/REVIEW.md`. CI runs `risk-scan.py --fail-on-trigger` on every pull request, so a trigger fails the gates job rather than merely being reported; the job also applies the `needs-human` label. A trigger list that fires constantly means the repository should set `mode.merge: human` by evidence, not by policy.
+A trigger blocks automatic merge and requests review under `workflow/REVIEW.md`. `risk-gate.py` turns the classification into a decision: `pass` with no trigger, `blocked` without a valid approval on the head commit, `approved` with one. CI runs it on `pull_request` and `pull_request_review` and publishes the verdict as the commit status named by `review.status_context` (default `risk-gate`) on the head, which branch protection must require. `risk-scan.py` only classifies; `--fail-on-trigger` makes it fail closed when it is used on its own. A trigger list that fires constantly means the repository should set `mode.merge: human` by evidence, not by policy.
 
 ## 5. Proportional validation
 
@@ -141,3 +141,4 @@ The residual risk — a well-formed artifact that is wrong — is the verifier's
 | 1.0.0 | 2026-10-24 | Initial. |
 | 2.0.0 | 2026-10-25 | Exceptions delegated to the agent except on risk-triggered surfaces; adds risk triggers and structural gates; paths updated. |
 | 2.0.1 | 2026-10-24 | The risk scan is fail-closed in CI (`--fail-on-trigger`), not advisory. |
+| 2.1.0 | 2026-10-24 | Adds `risk-gate.py`: the scan decides pass/blocked/approved and publishes the verdict as a commit status re-evaluated on review events. |

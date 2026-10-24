@@ -4,15 +4,28 @@ Companion to test_install_risk.py: these cover what the installer transfers
 (constitution, configuration, CI rendering) and what doctor.py accepts.
 """
 
+import importlib.util
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "workflow" / "scripts"
+
+
+def load_install():
+    spec = importlib.util.spec_from_file_location("install", SCRIPTS / "install.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+INSTALL = load_install()
 
 
 def run(cmd, cwd=None):
@@ -67,6 +80,8 @@ class InstallContractTest(unittest.TestCase):
     def test_new_install_defaults_to_human_merge_and_can_opt_in(self):
         self.install()
         self.assertEqual(self.config()["mode"]["merge"], "human")
+        self.assertEqual(self.config()["review"],
+                         {"approvers": [], "status_context": "risk-gate"})
         other = tempfile.TemporaryDirectory()
         self.addCleanup(other.cleanup)
         proc = run([sys.executable, str(SCRIPTS / "install.py"),
@@ -103,17 +118,40 @@ class InstallContractTest(unittest.TestCase):
         self.assertEqual(after["stack"], ["python"])
         self.assertIn("lint", after["commands"])
         ci = (self.dir / ".github" / "workflows" / "wp.yml").read_text(encoding="utf-8")
-        self.assertIn("run: make verify", ci)
+        self.assertIn("run-role.py test_full", ci)
+        self.assertEqual(after["review"]["status_context"], "risk-gate")
+
+    def test_detection_keeps_pytest_style_tests_on_pytest(self):
+        (self.dir / "pyproject.toml").write_text('[project]\nname = "x"\n', encoding="utf-8")
+        (self.dir / "tests").mkdir()
+        (self.dir / "tests" / "test_x.py").write_text(
+            "def test_x():\n    assert True\n", encoding="utf-8")
+        proc = self.install()
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertTrue(self.config()["commands"]["test_full"].startswith("python3 -m pytest"))
+
+    def test_unittest_without_a_package_uses_importable_discovery(self):
+        (self.dir / "pyproject.toml").write_text('[project]\nname = "x"\n', encoding="utf-8")
+        (self.dir / "tests").mkdir()
+        (self.dir / "tests" / "test_x.py").write_text(
+            "import unittest\n\nclass T(unittest.TestCase):\n    def test_x(self):\n"
+            "        self.assertTrue(True)\n", encoding="utf-8")
+        # Simulate an environment without pytest, independent of this machine.
+        with mock.patch.object(INSTALL.subprocess, "run", return_value=mock.Mock(returncode=1)):
+            detected = INSTALL.detect(self.dir)
+        self.assertEqual(detected["commands"]["test_full"],
+                         "python3 -m unittest discover -s tests")
 
     def test_generated_ci_enforces_the_risk_gate(self):
         proc = self.install()
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         ci = (self.dir / ".github" / "workflows" / "wp.yml").read_text(encoding="utf-8")
-        risk_lines = [l for l in ci.splitlines() if "risk-scan.py" in l]
-        self.assertEqual(len(risk_lines), 1, ci)
-        self.assertIn("--fail-on-trigger", risk_lines[0])
-        self.assertIn("needs-human", ci)
-        self.assertIn("pull-requests: write", ci)
+        self.assertIn("pull_request_review", ci)
+        self.assertIn("risk-gate.py", ci)
+        self.assertIn("--publish", ci)
+        self.assertIn("statuses: write", ci)
+        self.assertIn("run-role.py test_full", ci)
+        self.assertNotIn("run: true", ci)
         self.assertIn("check-ledger.py", ci)
         self.assertIn("check-changelog.py", ci)
 

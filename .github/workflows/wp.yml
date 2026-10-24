@@ -1,16 +1,24 @@
 # Hand-maintained for the kit repository itself; it mirrors the template in
 # workflow/scripts/install.py. The kit has no DECISIONS.md or CHANGELOG.md of its
 # own, so those two lanes are absent here and present in an installed project.
+#
+# Branch protection must require the `risk-gate` commit status. The job's own
+# check carries the event's SHA and cannot clear a failure recorded on the pull
+# request head when a review approval arrives.
 name: wp
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
   push:
     branches: [main]
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
+  statuses: write
 
 jobs:
   gates:
@@ -43,28 +51,36 @@ jobs:
         run: bash workflow/scripts/check-test-integrity.sh --verify
       - name: Caller existence
         env:
-          BASE_REF: ${{ github.base_ref || 'main' }}
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
         run: python3 workflow/scripts/check-caller-existence.py --base "origin/$BASE_REF" --committed
       - name: Full suite
-        run: python3 -m unittest discover -s tests -t .
+        run: python3 workflow/scripts/run-role.py test_full
       - name: Declaration
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'push'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           printf '%s' "$PR_BODY" > /tmp/declaration.md
           python3 workflow/scripts/check-declaration.py /tmp/declaration.md
-      - name: Risk scan
-        id: risk
-        if: github.event_name == 'pull_request'
+
+  risk:
+    name: risk gate
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Risk gate
         env:
-          BASE_REF: ${{ github.base_ref || 'main' }}
-        run: python3 workflow/scripts/risk-scan.py --base "origin/$BASE_REF" --fail-on-trigger
-      - name: Flag for human review
-        if: failure() && steps.risk.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          gh label create needs-human --description "Risk trigger: human review required" --force || true
-          gh pr edit "$PR_NUMBER" --add-label needs-human || true
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 workflow/scripts/risk-gate.py --base "origin/$BASE_REF" --head "$HEAD_SHA" --pr "$PR_NUMBER" --author "$PR_AUTHOR" --publish

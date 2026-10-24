@@ -24,6 +24,10 @@
     "review": "risk-triggered",
     "questions_max": 12
   },
+  "review": {
+    "approvers": [],
+    "status_context": "risk-gate"
+  },
   "risk_triggers": {
     "security": [
       "**/auth/**",

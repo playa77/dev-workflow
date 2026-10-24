@@ -1,6 +1,6 @@
 [project]
 name = "workflow-kit"
-version = "2.0.1"
+version = "2.1.0"
 description = "Architecture-first agentic delivery: specs, work packages, a decision ledger and a changelog"
 requires-python = ">=3.11"
 readme = "README.md"

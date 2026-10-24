@@ -69,6 +69,21 @@ def main(argv: list[str]) -> int:
     ):
         problems.append("risk_triggers must be an object of lists")
 
+    review = data.get("review")
+    if review is not None:
+        if not isinstance(review, dict):
+            problems.append("review must be an object")
+        else:
+            approvers = review.get("approvers")
+            if approvers is not None and not (
+                isinstance(approvers, list)
+                and all(isinstance(a, str) and a.strip() for a in approvers)
+            ):
+                problems.append("review.approvers must be a list of logins")
+            context = review.get("status_context")
+            if context is not None and not (isinstance(context, str) and context.strip()):
+                problems.append("review.status_context must be a non-empty string")
+
     if problems:
         for p in problems:
             print(f"FAIL: {p}")

@@ -36,8 +36,33 @@ PROJECT_ONLY = [
 
 KIT_ONLY = [
     "workflow/scripts/install.py", "workflow/scripts/risk-scan.py",
+    "workflow/scripts/risk-gate.py", "workflow/scripts/run-role.py",
     "workflow/templates/DECISIONS.seed.md", "workflow/templates/CHANGELOG.seed.md",
 ]
+
+# The CI file must implement the review-aware gate, not merely exist. The
+# installer preserves a hand-edited workflow, so this is the only check that
+# the preserved file still enforces the policy.
+CI_POLICY = [
+    ("pull_request_review",
+     "no pull_request_review trigger: an approval would not re-evaluate the gate"),
+    ("risk-gate.py",
+     "no risk-gate.py lane: the risk decision is not review-aware"),
+    ("--publish",
+     "risk-gate.py does not publish its verdict as a commit status"),
+    ("statuses: write",
+     "no `statuses: write` permission: the gate cannot publish its verdict"),
+    ("run-role.py test_full",
+     "the full-suite lane does not resolve `test_full` from workflow/config.json"),
+]
+
+
+def ci_policy_problems(path: Path) -> list[str]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"{path.name}: {exc}"]
+    return [f"{path.name}: {message}" for token, message in CI_POLICY if token not in text]
 
 
 def is_kit(root: Path) -> bool:
@@ -90,20 +115,15 @@ def main(argv: list[str]) -> int:
         if code != 0:
             problems.append(out.replace("\n", "; "))
 
-    config = root / "workflow" / "config.json"
-    if config.exists():
-        try:
-            data = json.loads(config.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            problems.append(f"config.json: {exc}")
-            data = {}
-        empty = [k for k, v in (data.get("commands") or {}).items() if not str(v).strip()]
-        if empty:
-            notes.append(f"unresolved command roles: {', '.join(empty)}")
-
     ci = root / ".github" / "workflows"
-    if not any((ci / n).exists() for n in ("wp.yml", "wp-workflow.yml")):
+    ci_files = [p for p in (ci / "wp.yml", ci / "wp-workflow.yml") if p.exists()]
+    if not ci_files:
         problems.append("no CI workflow installed (.github/workflows/wp.yml)")
+    if len(ci_files) > 1:
+        problems.append("both wp.yml and wp-workflow.yml exist: two workflows would "
+                        "race to publish the risk-gate status; remove one")
+    for path in ci_files:
+        problems.extend(ci_policy_problems(path))
 
     baseline = root / "workflow" / "state" / "test-baseline.json"
     if not baseline.exists():

@@ -1,4 +1,4 @@
-<!-- start-here | v2.0.1 | 2026-10-24 | single entrypoint; constitution transfer; CI risk gate -->
+<!-- start-here | v2.1.0 | 2026-10-24 | single entrypoint; resume precedence; review-aware gate -->
 # START — install, bootstrap, and the phase state machine
 
 This is the only file an operator needs to point an agent at. It says what to do first, what to read next, and when to stop.
@@ -7,11 +7,13 @@ This is the only file an operator needs to point an agent at. It says what to do
 
 | Check | State | Go to |
 |---|---|---|
+| `docs/wp/WP-nnn.state.json` exists and is not `delivered` | **resuming — takes precedence over every row below** | `workflow/STATE.md` §3 |
 | `workflow/config.json` missing or `workflow/state/install.json` missing | not installed | §1 |
 | `workflow/state/intake.json` missing | installed, no intake | §3 |
 | `intake.json` has `"open": 0` and a digest exists, no `docs/spec/SPEC.md` | intake done | §4 |
 | `docs/spec/SPEC.md` exists and `docs/roadmap/ROADMAP.md` exists | ready to execute | §5 |
-| `docs/wp/WP-nnn.state.json` exists and is not `delivered` | resuming | `workflow/STATE.md` §3 |
+
+Check resume first: an interrupted package and a project that is ready to execute can both be true, and the interrupt wins. Do not start a new package while a checkpoint is open.
 
 ## 1. Install (agent, no operator commands)
 
@@ -24,7 +26,10 @@ This is the only file an operator needs to point an agent at. It says what to do
    - A new install writes `mode.merge: human`. Do not switch it to `auto` without the operator's approval; propose the change in the digest (§3).
 3. Run `python3 workflow/scripts/doctor.py`.
    - Resolve every failure **inside `workflow/`**. If a command role cannot be detected, inspect the repository's Makefile, `package.json`, CI history and lockfiles, run the cheap candidates to confirm they work, and write the verified command into `workflow/config.json`. Do not hand this to the operator.
-4. Commit on `chore/workflow-init` with a Conventional Commit message. Open a PR and merge per `workflow/config.json` mode. The install touches `AGENTS.md`, `README.md` and `.github/`, so the risk scan will fire — request review and wait for it.
+   - CI resolves `test_full` from `workflow/config.json` at run time (`run-role.py`); an unset role fails the suite. Correcting the file needs no CI regeneration — re-run `doctor.py`, which also checks that the workflow still enforces the risk policy.
+4. Commit on `chore/workflow-init` with a Conventional Commit message. Open a PR and merge per `workflow/config.json` mode.
+   - The install touches `AGENTS.md`, `README.md` and `.github/`, so the risk gate blocks until the operator approves the head commit. Merge this first PR after review.
+   - **After it merges**, ask the operator to make the `risk-gate` commit status a required check in branch protection (a one-time repository setting). Configuring it before the workflow exists on the default branch would block this PR with no gate able to publish. Without the required check, later gates report but do not block.
 5. Continue to §2 in the same session. Do not stop to ask whether to begin.
 
 ## 2. Read order
@@ -63,9 +68,9 @@ For each package, in dependency order:
 2. Prompt: `workflow/prompts/execute.md`. Preflight is read-only; if the boundary is wrong, report before writing code.
 3. Implement, test, checkpoint (`progress.md`, `state.json`).
 4. Prompt: `workflow/prompts/verify.md` in a fresh context. The verifier does not fix code.
-5. `python3 workflow/scripts/risk-scan.py --base main --fail-on-trigger` — a non-zero exit (the JSON also reports `requires_human`) means stop and request review. CI runs the same command, so the trigger also fails the pull request.
+5. `python3 workflow/scripts/risk-gate.py --base main` — `pass` means no trigger; `blocked` means stop and request review. This local run cannot see approvals: CI re-decides on `pull_request` and `pull_request_review` and publishes the verdict as the `risk-gate` status on the head commit.
 6. `python3 workflow/scripts/close-wp.py --wp WP-nnn --base main` — appends the changelog line, regenerates the ledger index, validates both, writes the declaration.
-7. Merge per `workflow/config.json` mode, following `workflow/REVIEW.md` §1.1. `auto` permits the merge only after every lane is green and no trigger fired; nothing in the kit merges by itself. Do not start the next package in the same turn unless the operator asked for a batch.
+7. Merge per `workflow/config.json` mode, following `workflow/REVIEW.md` §1.1 — only when every required check is green and `risk-gate` is green on the head being merged. Nothing in the kit merges by itself. Do not start the next package in the same turn unless the operator asked for a batch.
 
 ## 6. When something blocks
 

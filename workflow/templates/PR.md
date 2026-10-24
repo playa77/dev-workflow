@@ -87,7 +87,7 @@ Output of `python3 workflow/scripts/risk-scan.py --base <base> --fail-on-trigger
 ```
 <triggers: none | list>
 requires_human: <true | false>
-exit: <0 | 1>
+risk-gate: <pass | blocked | approved>
 ```
 
-If `requires_human` is true, the CI risk lane fails, the PR is labelled `needs-human`, and it is not merged automatically.
+If `requires_human` is true, the PR is not merged until the `risk-gate` status is `success`: either no trigger, or an authorized human approved the exact head commit. A blocked gate is not merged automatically.
