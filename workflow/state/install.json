@@ -1,0 +1,10 @@
+{
+  "version": "2.0.0",
+  "target": "/home/daniel/projects/dev-workflow",
+  "stack": "python",
+  "files": [],
+  "blocks": {
+    "ci": "created"
+  },
+  "installed_at": "2026-10-24T17:14:18+00:00"
+}

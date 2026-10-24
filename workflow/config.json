@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "stack": [
+    "python"
+  ],
+  "commands": {
+    "test_full": "python3 -m unittest discover -s tests -t .",
+    "test_affected": "python3 -m unittest discover -s tests -t .",
+    "test_smoke": "python3 -m unittest discover -s tests -t .",
+    "lint": "python3 -m compileall -q tests workflow",
+    "build": "python3 -m compileall -q workflow",
+    "integrity": "bash workflow/scripts/check-test-integrity.sh --verify",
+    "callers": "python3 workflow/scripts/check-caller-existence.py --base main",
+    "stats": "bash workflow/scripts/wp-stats.sh --base main"
+  },
+  "integrity": {
+    "test_paths": [
+      "tests/test_*.py"
+    ],
+    "count_cmd": ""
+  },
+  "mode": {
+    "merge": "auto",
+    "review": "risk-triggered",
+    "questions_max": 12
+  },
+  "risk_triggers": {
+    "security": [
+      "**/auth/**",
+      "**/authn/**",
+      "**/authz/**",
+      "**/crypto/**",
+      "**/*secret*",
+      "**/.env",
+      "**/*.pem",
+      "**/*.key"
+    ],
+    "data": [
+      "**/migrations/**",
+      "**/migrate/**",
+      "**/schema/**"
+    ],
+    "money": [
+      "**/billing/**",
+      "**/payments/**",
+      "**/money/**"
+    ],
+    "dependencies": [
+      "**/pyproject.toml",
+      "**/package.json",
+      "**/requirements*.txt",
+      "**/go.mod",
+      "**/Cargo.toml",
+      "**/*.lock",
+      "**/poetry.lock",
+      "**/package-lock.json",
+      "**/yarn.lock"
+    ],
+    "ci": [
+      ".github/**"
+    ],
+    "method": [
+      "AGENTS.md",
+      "DECISIONS.md",
+      "workflow/**"
+    ],
+    "public_api": [
+      "**/__init__.py"
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "branch": "main",
+  "created": "2026-10-24T17:16:45+00:00",
+  "files": {
+    "tests/test_changelog.py": {
+      "sha256": "754d65efdbc2eca254224f9906c2df5482e2e5b145a1a1cb15f6b3e6da06ff43",
+      "skips": 0,
+      "tests": 7
+    },
+    "tests/test_close_wp.py": {
+      "sha256": "5f61b7f57e7c8f0dd23e5ab34c104be076b804625467658d28eba9ed36845844",
+      "skips": 0,
+      "tests": 2
+    },
+    "tests/test_gates.py": {
+      "sha256": "a5937b26521e24bc3f1895472995a1fe7b32c7e3344a5d56fc66a475efb8bdc5",
+      "skips": 0,
+      "tests": 14
+    },
+    "tests/test_install_risk.py": {
+      "sha256": "d34c229fee92259aa9a3fd3cac93922a6556fdc69a31acb204efd318d7c2e984",
+      "skips": 0,
+      "tests": 4
+    },
+    "tests/test_ledger.py": {
+      "sha256": "d89d2757cbaabb173cf6cdef3ba2baada0dfdb1d204bca11d91e9c05bd2c3305",
+      "skips": 0,
+      "tests": 10
+    }
+  },
+  "revision": "bb2b018",
+  "stack": "python",
+  "version": 1
+}

@@ -1,0 +1,20 @@
+{
+  "project": "<name>",
+  "updated": null,
+  "questions_asked": 0,
+  "topics": {
+    "purpose": {"status": "open"},
+    "users": {"status": "open"},
+    "scope": {"status": "open"},
+    "data": {"status": "open"},
+    "integrations": {"status": "open"},
+    "security": {"status": "open"},
+    "infrastructure": {"status": "open"},
+    "performance": {"status": "open"},
+    "budget": {"status": "open"},
+    "technology": {"status": "open"},
+    "operations": {"status": "open"},
+    "non_goals": {"status": "open"}
+  },
+  "open": 12
+}

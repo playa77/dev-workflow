@@ -1,0 +1,17 @@
+{
+  "wp": "WP-<nnn>",
+  "branch": "feat/wp-<nnn>-<slug>",
+  "base": "main",
+  "status": "in-progress",
+  "updated": "<ISO-8601>",
+  "revision": "<sha>",
+  "user_visible": false,
+  "decisions": [],
+  "criteria": [
+    {"id": 1, "passes": false, "evidence": null}
+  ],
+  "verification": {"command": "<command>", "last_run": null, "result": "not-run"},
+  "integrity": {"snapshot": "workflow/state/test-baseline.json", "verify": "not-run", "stash_check": "not-applicable"},
+  "risk": {"requires_human": false, "triggers": []},
+  "blockers": []
+}
