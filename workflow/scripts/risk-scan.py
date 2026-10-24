@@ -2,7 +2,12 @@
 """Classify a diff against the risk triggers that force human review.
 
 Usage:
-    python3 workflow/scripts/risk-scan.py --base main [--json] [--fail-on-trigger]
+    python3 workflow/scripts/risk-scan.py --base main [--head REV] [--json]
+                                          [--fail-on-trigger]
+
+`--head` selects the revision that is inspected (default `HEAD`). The gate uses
+it to read a fetched pull request commit as data while its own checkout stays
+on the protected default branch.
 
 Prints JSON:
     {"base": "main", "files": 3, "triggers": [{"class": "...", "path": "...", "reason": "..."}],
@@ -89,15 +94,16 @@ def is_test(path: str) -> bool:
     return any(re.search(p, path) for p in TEST_PATTERNS)
 
 
-def scan(cwd: Path, base: str) -> dict:
-    name_status = git(["diff", "--name-status", f"{base}...HEAD"], cwd)
+def scan(cwd: Path, base: str, head: str = "HEAD") -> dict:
+    revision = f"{base}...{head}"
+    name_status = git(["diff", "--name-status", revision], cwd)
     files: list[tuple[str, str]] = []
     for line in name_status.splitlines():
         parts = line.split("\t")
         if len(parts) >= 2:
             files.append((parts[0], parts[-1]))
 
-    diff = git(["diff", f"{base}...HEAD", "-U0"], cwd)
+    diff = git(["diff", revision, "-U0"], cwd)
     added = [l[1:] for l in diff.splitlines() if l.startswith("+") and not l.startswith("+++")]
 
     triggers: list[dict] = []
@@ -136,13 +142,14 @@ def scan(cwd: Path, base: str) -> dict:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--base", default="main")
+    ap.add_argument("--head", default="HEAD")
     ap.add_argument("--root", default=".")
     ap.add_argument("--json", action="store_true", help="accepted for symmetry; JSON is always printed")
     ap.add_argument("--fail-on-trigger", action="store_true")
     args = ap.parse_args(argv)
 
     try:
-        result = scan(Path(args.root), args.base)
+        result = scan(Path(args.root), args.base, args.head)
     except RuntimeError as exc:
         print(f"risk-scan: error: {exc}", file=sys.stderr)
         return 2

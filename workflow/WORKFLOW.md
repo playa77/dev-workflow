@@ -89,7 +89,7 @@ Order is fixed:
 
 1. machine gates (`workflow/VERIFICATION.md`, CI);
 2. fresh-context verifier (`workflow/prompts/verify.md`);
-3. risk gate (`workflow/scripts/risk-gate.py`; CI publishes its verdict as the `risk-gate` status on the head commit and re-runs on review events);
+3. risk gate (`workflow/scripts/risk-gate.py`, executed from the repository's protected default branch; CI publishes its verdict as the `risk-gate` status on the head commit and re-runs on review events);
 4. human review **only if the scan triggers**, otherwise at the milestone audit (`workflow/REVIEW.md`);
 5. merge per `workflow/config.json` mode, under the procedure in `workflow/REVIEW.md` §1.1 — `auto` is a permission for the executing agent, not a runner.
 

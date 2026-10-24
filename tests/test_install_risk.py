@@ -112,6 +112,21 @@ class RiskScanTest(unittest.TestCase):
         classes = {t["class"] for t in self.scan()["triggers"]}
         self.assertIn("data_deletion", classes)
 
+    def test_head_scans_a_revision_that_is_not_checked_out(self):
+        base = run(["git", "rev-parse", "HEAD"], cwd=self.dir).stdout.strip()
+        (self.dir / "src" / "auth").mkdir()
+        (self.dir / "src" / "auth" / "x.py").write_text("y = 2\n", encoding="utf-8")
+        self.commit()
+        head = run(["git", "rev-parse", "HEAD"], cwd=self.dir).stdout.strip()
+        # The gate's own checkout stays on the base commit; the head is data.
+        run(["git", "reset", "-q", "--hard", base], cwd=self.dir)
+        proc = run([sys.executable, str(SCRIPTS / "risk-scan.py"),
+                    "--base", base, "--head", head, "--root", str(self.dir)])
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertTrue(result["requires_human"], result)
+        self.assertIn("security", {t["class"] for t in result["triggers"]})
+
 
 if __name__ == "__main__":
     unittest.main()

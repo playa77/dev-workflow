@@ -85,7 +85,7 @@ These establish that the declaration is complete and the execution happened. The
 - any modified, renamed, deleted or newly skipped test;
 - any change to `AGENTS.md`, `DECISIONS.md` or `workflow/`.
 
-A trigger blocks automatic merge and requests review under `workflow/REVIEW.md`. `risk-gate.py` turns the classification into a decision: `pass` with no trigger, `blocked` without a valid approval on the head commit, `approved` with one. CI runs it on `pull_request` and `pull_request_review` and publishes the verdict as the commit status named by `review.status_context` (default `risk-gate`) on the head, which branch protection must require. `risk-scan.py` only classifies; `--fail-on-trigger` makes it fail closed when it is used on its own. A trigger list that fires constantly means the repository should set `mode.merge: human` by evidence, not by policy.
+A trigger blocks automatic merge and requests review under `workflow/REVIEW.md`. `risk-gate.py` turns the classification into a decision: `pass` with no trigger, `blocked` without a valid approval on the head commit, `approved` with one. CI runs it on `pull_request` and `pull_request_review` and publishes the verdict as the commit status named by `review.status_context` (default `risk-gate`) on the head, which branch protection must require together with the `workflow gates` check. The gate executes from the repository's protected default branch and reads the head as a diff, so no pull request script or test runs in the job that publishes the status. `risk-scan.py` only classifies; `--fail-on-trigger` makes it fail closed when it is used on its own. A trigger list that fires constantly means the repository should set `mode.merge: human` by evidence, not by policy.
 
 ## 5. Proportional validation
 

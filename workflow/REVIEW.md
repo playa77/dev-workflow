@@ -49,11 +49,13 @@ One valid approval satisfies the risk gate. Branch protection's separate "requir
 
 CI runs the gate on two triggers: `pull_request` (opened, synchronize, reopened, ready_for_review) and `pull_request_review` (submitted, dismissed). A review approval therefore re-evaluates the gate **without a new commit** and flips the status. The status context is `review.status_context` (default `risk-gate`).
 
-**Branch protection must require that status.** The workflow run's own job is not the gate: on a review event the run is attached to the pull request merge commit, and its check cannot clear a failure recorded against the head. The commit status is the only object that carries the decision for the revision under review. This is a one-time repository setting, listed in the install steps.
+**Branch protection must require that status, and the `workflow gates` check.** The two lanes are independent: a green risk decision does not compensate for failed tests, and a green test run does not satisfy a risk trigger. The risk job's own check is not the gate: on a review event the run is attached to the pull request merge commit, and its check cannot clear a failure recorded against the head. The commit status is the only object that carries the decision for the revision under review. This is a one-time repository setting, listed in the install steps.
 
-The gate itself runs from the pull request's merge commit, so a change to `.github/**` can alter it. That change is a `ci` risk trigger and must be read in the diff; a gate that a pull request can rewrite is only as strong as the review of that hunk.
+The gate executes only trusted code. CI checks out the repository's **protected default branch** and runs `risk-gate.py` and `risk-scan.py` from there, with `workflow/config.json` from the same checkout; the head is fetched as a git object and inspected as a diff against the pull request's target branch. The gate imports and executes nothing from the head, so a change to the gate scripts or to the risk triggers cannot alter its own verdict. Permissions are granted per job: the test lane runs pull request code with `contents: read` and without persisted checkout credentials.
 
-Two consequences worth stating plainly:
+The workflow definition is a separate surface. GitHub runs `pull_request` and `pull_request_review` workflow files from the merged pull request, so a change to `.github/workflows/**` still alters the job that publishes the status — it is a `ci` trigger and must be read as a privileged change. The outer trust boundary is write access to the repository: the gate enforces process against actors who are not attacking the CI system, and cannot police a writer who is.
+
+Three consequences worth stating plainly:
 
 - **Fork pull requests get a read-only `GITHUB_TOKEN`**, so the gate cannot publish a status there. The required status never appears and the PR stays blocked rather than merging unreviewed. The kit assumes branches in the same repository, which is how the agent workflow operates.
 - **A dismissed or superseded approval blocks again on the next evaluation.** There is no "approved forever" state.

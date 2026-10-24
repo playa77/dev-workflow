@@ -29,7 +29,7 @@ Check resume first: an interrupted package and a project that is ready to execut
    - CI resolves `test_full` from `workflow/config.json` at run time (`run-role.py`); an unset role fails the suite. Correcting the file needs no CI regeneration — re-run `doctor.py`, which also checks that the workflow still enforces the risk policy.
 4. Commit on `chore/workflow-init` with a Conventional Commit message. Open a PR and merge per `workflow/config.json` mode.
    - The install touches `AGENTS.md`, `README.md` and `.github/`, so the risk gate blocks until the operator approves the head commit. Merge this first PR after review.
-   - **After it merges**, ask the operator to make the `risk-gate` commit status a required check in branch protection (a one-time repository setting). Configuring it before the workflow exists on the default branch would block this PR with no gate able to publish. Without the required check, later gates report but do not block.
+   - **After it merges**, ask the operator to require the `workflow gates` check and the `risk-gate` commit status in branch protection (two one-time repository settings). Configuring them before the workflow exists on the default branch would block this PR with no gate able to report. Without both required checks, later gates report but do not block — and a green risk decision must never stand in for failed tests.
 5. Continue to §2 in the same session. Do not stop to ask whether to begin.
 
 ## 2. Read order

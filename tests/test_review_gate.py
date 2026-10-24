@@ -152,11 +152,16 @@ class RiskGateHttpTest(unittest.TestCase):
         (self.dir / "src" / "auth" / "login.py").write_text("x = 1\n", encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=self.dir, check=True)
         subprocess.run(["git", "commit", "-qm", "base"], cwd=self.dir, check=True)
+        self.base_ref = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=self.dir,
+                                       capture_output=True, text=True, check=True).stdout.strip()
+        subprocess.run(["git", "checkout", "-q", "-b", "pr"], cwd=self.dir, check=True)
         (self.dir / "src" / "auth" / "login.py").write_text("x = 2\n", encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=self.dir, check=True)
         subprocess.run(["git", "commit", "-qm", "change"], cwd=self.dir, check=True)
         self.head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.dir,
                                    capture_output=True, text=True, check=True).stdout.strip()
+        # The gate runs from the base commit; the pull request head is data.
+        subprocess.run(["git", "checkout", "-q", self.base_ref], cwd=self.dir, check=True)
 
         FakeGitHub.requests = []
         FakeGitHub.head = self.head
@@ -173,7 +178,7 @@ class RiskGateHttpTest(unittest.TestCase):
         env = dict(os.environ, GITHUB_TOKEN="test-token", GITHUB_API_URL=self.base,
                    PYTHONDONTWRITEBYTECODE="1")
         return subprocess.run(
-            [sys.executable, str(SCRIPTS / "risk-gate.py"), "--base", "HEAD~1",
+            [sys.executable, str(SCRIPTS / "risk-gate.py"), "--base", self.base_ref,
              "--root", str(self.dir), "--head", self.head, "--pr", "7",
              "--repo", "owner/repo", "--author", "agent", "--publish", "--json"],
             capture_output=True, text=True, env=env,
@@ -306,6 +311,25 @@ class DoctorCiPolicyTest(unittest.TestCase):
         proc = self.doctor()
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("race", proc.stdout)
+
+    def test_pr_head_checkout_fails_doctor(self):
+        ci = self.dir / ".github" / "workflows" / "wp.yml"
+        text = ci.read_text(encoding="utf-8")
+        mutated = text.replace("ref: ${{ github.event.repository.default_branch }}",
+                               "ref: ${{ github.event.pull_request.head.sha }}")
+        self.assertNotEqual(mutated, text)
+        ci.write_text(mutated, encoding="utf-8")
+        proc = self.doctor()
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("default branch", proc.stdout)
+
+    def test_workflow_level_status_write_fails_doctor(self):
+        ci = self.dir / ".github" / "workflows" / "wp.yml"
+        ci.write_text("permissions:\n  statuses: write\n" + ci.read_text(encoding="utf-8"),
+                      encoding="utf-8")
+        proc = self.doctor()
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("every job", proc.stdout)
 
 
 if __name__ == "__main__":

@@ -155,6 +155,17 @@ class InstallContractTest(unittest.TestCase):
         self.assertIn("check-ledger.py", ci)
         self.assertIn("check-changelog.py", ci)
 
+    def test_generated_ci_runs_the_gate_from_trusted_code(self):
+        proc = self.install()
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        ci = (self.dir / ".github" / "workflows" / "wp.yml").read_text(encoding="utf-8")
+        self.assertIn("ref: ${{ github.event.repository.default_branch }}", ci)
+        self.assertIn('"+refs/pull/${PR_NUMBER}/head:refs/remotes/pull/head"', ci)
+        self.assertIn("persist-credentials: false", ci)
+        self.assertNotIn("ref: ${{ github.event.pull_request.head.sha }}", ci)
+        self.assertFalse([line for line in ci.splitlines() if line.startswith("permissions:")],
+                         "statuses: write must be granted per job, not workflow-wide")
+
     def test_upgrade_does_not_overwrite_a_ci_file_it_did_not_generate(self):
         self.install()
         ci = self.dir / ".github" / "workflows" / "wp.yml"

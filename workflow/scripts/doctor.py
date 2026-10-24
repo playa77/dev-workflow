@@ -54,7 +54,32 @@ CI_POLICY = [
      "no `statuses: write` permission: the gate cannot publish its verdict"),
     ("run-role.py test_full",
      "the full-suite lane does not resolve `test_full` from workflow/config.json"),
+    ("ref: ${{ github.event.repository.default_branch }}",
+     "the risk job does not check out the protected default branch: it would "
+     "execute pull request code in the job that publishes the verdict"),
+    ("refs/pull/",
+     "the risk job does not fetch the pull request head as data"),
+    ("persist-credentials: false",
+     "the test job leaves checkout credentials in .git/config for pull request code"),
 ]
+
+
+def workflow_level_status_write(text: str) -> bool:
+    """True when `statuses: write` is granted workflow-wide instead of per job."""
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("permissions:"):
+            continue
+        inline = line.split(":", 1)[1].strip()
+        if inline in {"statuses: write", "write-all"}:
+            return True
+        for following in lines[index + 1:]:
+            stripped = following.strip()
+            if stripped and not following[:1].isspace():
+                break
+            if stripped in {"statuses: write", "write-all"}:
+                return True
+    return False
 
 
 def ci_policy_problems(path: Path) -> list[str]:
@@ -62,7 +87,11 @@ def ci_policy_problems(path: Path) -> list[str]:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         return [f"{path.name}: {exc}"]
-    return [f"{path.name}: {message}" for token, message in CI_POLICY if token not in text]
+    problems = [f"{path.name}: {message}" for token, message in CI_POLICY if token not in text]
+    if workflow_level_status_write(text):
+        problems.append(f"{path.name}: `statuses: write` is granted to every job; "
+                        "only the trusted risk job may publish a status")
+    return problems
 
 
 def is_kit(root: Path) -> bool:

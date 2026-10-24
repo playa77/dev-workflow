@@ -24,6 +24,11 @@ With --publish the verdict is also written as a commit status on the head
 commit, context `review.status_context` (default `risk-gate`). CI runs this on
 pull_request and pull_request_review events, so an approval re-evaluates
 without a new commit; branch protection must require that status.
+
+Trust boundary: run this script from the repository's protected default branch,
+never from the pull request. `--head` names the commit to inspect; the scan
+reads it as a git diff and no pull request file is imported or executed. The
+workflow that publishes the status therefore runs only trusted code.
 """
 
 from __future__ import annotations
@@ -57,11 +62,11 @@ def load_settings(root: Path) -> tuple[list[str], str]:
     return approvers, context
 
 
-def scan(root: Path, base: str) -> dict:
+def scan(root: Path, base: str, head: str) -> dict:
     script = Path(__file__).with_name("risk-scan.py")
     proc = subprocess.run(
-        [sys.executable, str(script), "--base", base, "--root", str(root),
-         "--fail-on-trigger"],
+        [sys.executable, str(script), "--base", base, "--head", head,
+         "--root", str(root), "--fail-on-trigger"],
         capture_output=True, text=True,
     )
     if proc.returncode not in (0, 1):
@@ -258,7 +263,7 @@ def main(argv: list[str]) -> int:
     try:
         head = args.head.strip() or git_head(root)
         approvers, context = load_settings(root)
-        result = scan(root, args.base)
+        result = scan(root, args.base, head)
         tok = token()
         reviews = None
         if args.pr and args.repo and tok:
