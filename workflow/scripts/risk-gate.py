@@ -70,8 +70,10 @@ def load_settings(root: Path) -> dict:
         data = {}
     if not isinstance(data, dict):
         data = {}
-    mode = data.get("mode") if isinstance(data.get("mode"), dict) else {}
-    review = data.get("review") if isinstance(data.get("review"), dict) else {}
+    mode_value = data.get("mode")
+    mode = mode_value if isinstance(mode_value, dict) else {}
+    review_value = data.get("review")
+    review = review_value if isinstance(review_value, dict) else {}
 
     review_mode = str(mode.get("review") or DEFAULT_REVIEW_MODE).strip().lower()
     if review_mode not in REVIEW_MODES:
@@ -79,7 +81,9 @@ def load_settings(root: Path) -> dict:
         # check-config.py reports the invalid value as a failure as well.
         review_mode = "risk-triggered"
 
-    approvers = [str(a).strip() for a in (review.get("approvers") or []) if str(a).strip()]
+    raw_approvers = review.get("approvers")
+    approvers = [str(a).strip() for a in raw_approvers if str(a).strip()] \
+        if isinstance(raw_approvers, list) else []
     context = str(review.get("status_context") or "risk-gate").strip() or "risk-gate"
     return {"review_mode": review_mode, "approvers": approvers, "context": context}
 

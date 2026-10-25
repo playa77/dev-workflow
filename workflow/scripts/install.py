@@ -354,8 +354,10 @@ def merge_config(existing: dict, detected: dict, merge_mode: str, review_mode: s
     mode = merged.get("mode")
     if not isinstance(mode, dict):
         mode = {}
-    mode.setdefault("merge", merge_mode)
-    mode.setdefault("review", review_mode)
+    if not isinstance(mode.get("merge"), str) or not mode["merge"].strip():
+        mode["merge"] = merge_mode
+    if not isinstance(mode.get("review"), str) or not mode["review"].strip():
+        mode["review"] = review_mode
     if override_review:
         mode["review"] = review_mode
     mode.setdefault("questions_max", 12)
