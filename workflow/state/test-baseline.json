@@ -1,6 +1,6 @@
 {
-  "branch": "main",
-  "created": "2026-10-24T17:16:45+00:00",
+  "branch": "feat/solo-review-default",
+  "created": "2026-10-25T07:29:18+00:00",
   "files": {
     "tests/test_changelog.py": {
       "sha256": "754d65efdbc2eca254224f9906c2df5482e2e5b145a1a1cb15f6b3e6da06ff43",
@@ -17,18 +17,33 @@
       "skips": 0,
       "tests": 14
     },
-    "tests/test_install_risk.py": {
-      "sha256": "d34c229fee92259aa9a3fd3cac93922a6556fdc69a31acb204efd318d7c2e984",
+    "tests/test_install_contract.py": {
+      "sha256": "552e2a8ebde9fd9919abd157f6c500962c0fd3ec12e1ce03ecf91b8755ce5af5",
       "skips": 0,
-      "tests": 4
+      "tests": 18
+    },
+    "tests/test_install_risk.py": {
+      "sha256": "ea5eb640ee9f009bba5781bdd5e9627e5dab4e5a16d855291f6a98db965a7b1a",
+      "skips": 0,
+      "tests": 16
     },
     "tests/test_ledger.py": {
       "sha256": "d89d2757cbaabb173cf6cdef3ba2baada0dfdb1d204bca11d91e9c05bd2c3305",
       "skips": 0,
       "tests": 10
+    },
+    "tests/test_review_gate.py": {
+      "sha256": "947cd0fd01db66d7c4bc06e247e95dbf2b2c1e2dc5bdbc04d79f702862dbd2e6",
+      "skips": 0,
+      "tests": 38
+    },
+    "tests/test_solo_lifecycle.py": {
+      "sha256": "3236a19ea14feb1d84c5613315041b00f4814d164ad849a9f57404fa8f9a451e",
+      "skips": 0,
+      "tests": 6
     }
   },
-  "revision": "bb2b018",
+  "revision": "e76e1f3",
   "stack": "python",
   "version": 1
 }
