@@ -1,6 +1,6 @@
 {
   "branch": "feat/solo-review-default",
-  "created": "2026-10-25T07:31:23+00:00",
+  "created": "2026-10-25T07:31:27+00:00",
   "files": {
     "tests/test_changelog.py": {
       "sha256": "754d65efdbc2eca254224f9906c2df5482e2e5b145a1a1cb15f6b3e6da06ff43",
@@ -43,7 +43,7 @@
       "tests": 6
     }
   },
-  "revision": "a2b473d",
+  "revision": "1abdd6b",
   "stack": "python",
   "version": 1
 }
