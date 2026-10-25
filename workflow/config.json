@@ -20,8 +20,8 @@
     "count_cmd": ""
   },
   "mode": {
-    "merge": "auto",
-    "review": "risk-triggered",
+    "merge": "human",
+    "review": "advisory",
     "questions_max": 12
   },
   "review": {
@@ -63,13 +63,24 @@
     "ci": [
       ".github/**"
     ],
+    "enforcement": [
+      "workflow/scripts/**",
+      "workflow/config.json",
+      "workflow/state/test-baseline.json"
+    ],
     "method": [
       "AGENTS.md",
-      "DECISIONS.md",
       "workflow/**"
     ],
     "public_api": [
-      "**/__init__.py"
+      "**/api/**",
+      "**/public/**"
+    ],
+    "bookkeeping": [
+      "DECISIONS.md",
+      "CHANGELOG.md",
+      "workflow/process/CALIBRATION.csv",
+      "workflow/state/install.json"
     ]
   }
 }

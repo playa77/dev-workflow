@@ -17,9 +17,10 @@ JS_CALL = re.compile(r"\b(?:it|test)(?:\.(?:only|concurrent))?\s*\(")
 GO_FUNC = re.compile(r"^func\s+(Test\w+)\s*\(")
 RS_TEST = re.compile(r"^\s*#\[(?:tokio::)?test\]")
 
-PY_ASSERT = re.compile(r"\bassert\b|pytest\.raises|assertRaises|assertEqual|assertTrue|"
-                       r"assertIn|assertIs|assertGreater|assertLess|assertAlmost|"
-                       r"assertRaisesRegex|assertWarns|pytest\.fail|self\.fail\(")
+PY_ASSERT = re.compile(r"\bassert\b|self\.assert\w+|pytest\.raises|assertRaises|assertEqual|"
+                       r"assertTrue|assertFalse|assertNotIn|assertIn|assertIs|assertGreater|"
+                       r"assertLess|assertAlmost|assertRaisesRegex|assertWarns|"
+                       r"pytest\.fail|self\.fail\(")
 JS_ASSERT = re.compile(r"\bexpect\s*\(|\bassert\b|\.should\b|\bt\.(?:is|deepEqual|throws)\b")
 GO_ASSERT = re.compile(r"\bt\.(?:Error|Errorf|Fatal|Fatalf|Fail|FailNow)\b|\b(?:require|assert)\.")
 RS_ASSERT = re.compile(r"\bassert(?:_eq|_ne)?!|\bdebug_assert|\bpanic!|unwrap_err|"

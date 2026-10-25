@@ -12,6 +12,6 @@
   ],
   "verification": {"command": "<command>", "last_run": null, "result": "not-run"},
   "integrity": {"snapshot": "workflow/state/test-baseline.json", "verify": "not-run", "stash_check": "not-applicable"},
-  "risk": {"requires_human": false, "triggers": []},
+  "risk": {"mode": "advisory", "verdict": "pass", "requires_human": false, "triggers": []},
   "blockers": []
 }

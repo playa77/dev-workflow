@@ -70,6 +70,19 @@ class RiskScanTest(unittest.TestCase):
         (self.dir / "tests").mkdir()
         (self.dir / "tests" / "test_a.py").write_text(
             "def test_a():\n    assert True\n", encoding="utf-8")
+        (self.dir / "DECISIONS.md").write_text("# Decisions\n", encoding="utf-8")
+        (self.dir / "CHANGELOG.md").write_text("# Changelog\n", encoding="utf-8")
+        (self.dir / "workflow" / "process").mkdir(parents=True)
+        (self.dir / "workflow" / "process" / "CALIBRATION.csv").write_text(
+            "wp\n", encoding="utf-8")
+        (self.dir / "workflow" / "scripts").mkdir(parents=True)
+        (self.dir / "workflow" / "scripts" / "check-x.py").write_text(
+            "x = 1\n", encoding="utf-8")
+        (self.dir / ".github" / "workflows").mkdir(parents=True)
+        (self.dir / ".github" / "workflows" / "wp.yml").write_text(
+            "name: x\n", encoding="utf-8")
+        (self.dir / "pkg").mkdir()
+        (self.dir / "pkg" / "__init__.py").write_text('"""pkg"""\n', encoding="utf-8")
         run(["git", "add", "-A"], cwd=self.dir)
         run(["git", "commit", "-qm", "base"], cwd=self.dir)
 
@@ -106,11 +119,114 @@ class RiskScanTest(unittest.TestCase):
         self.assertFalse(result["requires_human"], result)
 
     def test_deletion_sql_triggers(self):
+        statement = "DROP " + "TABLE users"
         (self.dir / "src" / "app.py").write_text(
-            "x = 2\nQUERY = 'DROP TABLE users'\n", encoding="utf-8")
+            f"x = 2\nQUERY = '{statement}'\n", encoding="utf-8")
         self.commit()
         classes = {t["class"] for t in self.scan()["triggers"]}
         self.assertIn("data_deletion", classes)
+
+    def test_documentation_mentioning_destructive_commands_is_not_a_finding(self):
+        destructive = "rm " + "-rf /"
+        statement = "DROP " + "TABLE users"
+        (self.dir / "docs").mkdir()
+        (self.dir / "docs" / "operations.md").write_text(
+            f"Never run `{destructive}` against production, and never `{statement}`.\n",
+            encoding="utf-8")
+        self.commit()
+        result = self.scan()
+        self.assertNotIn("data_deletion", {t["class"] for t in result["triggers"]})
+        self.assertFalse(result["requires_human"])
+
+    def test_skip_marker_in_a_test_file_triggers(self):
+        marker = "@unittest." + "skip('later')"
+        (self.dir / "tests" / "test_a.py").write_text(
+            f"import unittest\n\n\n{marker}\ndef test_a():\n"
+            "    assert True\n", encoding="utf-8")
+        self.commit()
+        result = self.scan()
+        self.assertIn("test-skip", {t["class"] for t in result["triggers"]})
+        self.assertTrue(result["requires_human"])
+
+    def test_skip_marker_in_documentation_does_not_trigger(self):
+        marker = "@unittest." + "skip"
+        (self.dir / "docs").mkdir()
+        (self.dir / "docs" / "testing.md").write_text(
+            f"Do not add {marker} to hide a failing test.\n", encoding="utf-8")
+        self.commit()
+        result = self.scan()
+        self.assertNotIn("test-skip", {t["class"] for t in result["triggers"]})
+        self.assertFalse(result["requires_human"])
+
+    def test_decision_ledger_update_is_bookkeeping_not_material(self):
+        (self.dir / "DECISIONS.md").write_text(
+            "# Decisions\n\n### D-001 — A decision\n", encoding="utf-8")
+        self.commit()
+        result = self.scan()
+        classes = {(t["class"], t["severity"]) for t in result["triggers"]}
+        self.assertEqual(classes, {("bookkeeping", "info")})
+        self.assertFalse(result["requires_human"])
+
+    def test_calibration_record_is_bookkeeping_not_material(self):
+        (self.dir / "workflow" / "process" / "CALIBRATION.csv").write_text(
+            "wp\nWP-001\n", encoding="utf-8")
+        self.commit()
+        result = self.scan()
+        self.assertEqual({t["class"] for t in result["triggers"]}, {"bookkeeping"})
+        self.assertFalse(result["requires_human"])
+
+    def test_ordinary_package_initialiser_is_not_public_api(self):
+        (self.dir / "pkg" / "__init__.py").write_text(
+            '"""pkg"""\n\nVERSION = "1"\n', encoding="utf-8")
+        self.commit()
+        result = self.scan()
+        self.assertNotIn("public_api", {t["class"] for t in result["triggers"]})
+        self.assertFalse(result["requires_human"])
+
+    def test_all_change_in_package_initialiser_is_public_api(self):
+        (self.dir / "pkg" / "__init__.py").write_text(
+            '"""pkg"""\n\n__all__ = ["a", "b"]\n', encoding="utf-8")
+        self.commit()
+        result = self.scan()
+        self.assertIn("public_api", {t["class"] for t in result["triggers"]})
+        self.assertTrue(result["requires_human"])
+
+    def test_removing_a_public_definition_is_public_api(self):
+        path = self.dir / "pkg" / "__init__.py"
+        path.write_text('"""pkg"""\n\n\ndef public():\n    pass\n', encoding="utf-8")
+        self.commit("add public definition")
+        path.write_text('"""pkg"""\n', encoding="utf-8")
+        self.commit("remove public definition")
+        result = self.scan()
+        reasons = {t["reason"] for t in result["triggers"] if t["class"] == "public_api"}
+        self.assertTrue(any("removes public top-level definition" in r for r in reasons),
+                        result)
+        self.assertTrue(result["requires_human"])
+
+    def test_ci_change_is_material(self):
+        (self.dir / ".github" / "workflows" / "wp.yml").write_text(
+            "name: y\n", encoding="utf-8")
+        self.commit()
+        result = self.scan()
+        self.assertIn("ci", {t["class"] for t in result["triggers"]})
+        self.assertTrue(result["requires_human"])
+
+    def test_enforcement_script_change_is_material(self):
+        (self.dir / "workflow" / "scripts" / "check-x.py").write_text(
+            "x = 2\n", encoding="utf-8")
+        self.commit()
+        result = self.scan()
+        self.assertIn("enforcement", {t["class"] for t in result["triggers"]})
+        self.assertTrue(result["requires_human"])
+
+    def test_fail_on_trigger_ignores_bookkeeping(self):
+        (self.dir / "DECISIONS.md").write_text(
+            "# Decisions\n\n### D-001 — A decision\n", encoding="utf-8")
+        self.commit()
+        proc = run([sys.executable, str(SCRIPTS / "risk-scan.py"),
+                    "--base", "HEAD~1", "--root", str(self.dir), "--fail-on-trigger"])
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertFalse(json.loads(proc.stdout)["requires_human"])
 
     def test_head_scans_a_revision_that_is_not_checked_out(self):
         base = run(["git", "rev-parse", "HEAD"], cwd=self.dir).stdout.strip()

@@ -1,4 +1,4 @@
-<!-- start-here | v2.1.0 | 2026-10-24 | single entrypoint; resume precedence; review-aware gate -->
+<!-- start-here | v2.2.0 | 2026-10-25 | single entrypoint; solo default; advisory risk report -->
 # START — install, bootstrap, and the phase state machine
 
 This is the only file an operator needs to point an agent at. It says what to do first, what to read next, and when to stop.
@@ -25,8 +25,8 @@ Bootstrap is not a work package. It is the one change that creates the method, s
    - It lists every file and marker block it would write and writes nothing. If the plan would replace project content, or the working tree is not clean, stop and report it rather than proceeding: the bootstrap commit must contain the installation and nothing else.
    - Run the same command without `--dry-run`.
      - It copies the method into `workflow/`, installs the constitution as `workflow/CONSTITUTION.md` (and as `AGENTS.md` when the project has none), merges a marker block into an existing `AGENTS.md`, appends a pointer block to `README.md` (never replaces either), seeds `DECISIONS.md` and `CHANGELOG.md` only if absent, detects the stack, writes `workflow/config.json`, generates `.github/workflows/wp.yml`, writes the test baseline, and records `workflow/state/install.json`.
-     - `--upgrade` updates kit-owned files and preserves `config.json` edits, `DECISIONS.md`, `CHANGELOG.md`, `state/` and `process/`; in the configuration it fills only command roles that are missing or unset. `--reset-config` is the explicit way to regenerate the file.
-     - A new install writes `mode.merge: human`. Do not switch it to `auto` without the operator's approval; propose the change in the digest (§3).
+     - `--upgrade` updates kit-owned files and preserves `config.json` edits, `DECISIONS.md`, `CHANGELOG.md`, `state/` and `process/`; in the configuration it fills only command roles that are missing or unset. `--reset-config` is the explicit way to regenerate the file. An explicit `--review-mode advisory` on `--upgrade` migrates an existing strict installation to the solo default.
+     - A new install writes `mode.merge: human` and `mode.review: advisory` (the solo default: the owner merges and accepts reported risks). `--review-mode risk-triggered` or `human` opts into independent review; `--merge-mode auto` opts into agent merging. Do not change either without the operator's approval; propose it in the digest (§3).
 
 2. **Run every local check the installation provides.** No pull request or risk gate reviews this commit, so run them all and report every result.
    - `python3 workflow/scripts/doctor.py` — required files, configuration, ledger and changelog, and the CI policy. Resolve every failure **inside `workflow/`** and re-run it until it exits 0.
@@ -43,6 +43,7 @@ Bootstrap is not a work package. It is the one change that creates the method, s
    - The risk gate never sees this diff: the commit creates the gate and touches `AGENTS.md`, `.github/` and `workflow/`, which are all triggers. The approval in step 3 is the review that stands in for it.
 
 5. **Close the one-time settings.** Now that the CI file is on the default branch, ask the operator to require the `workflow gates` check and the `risk-gate` commit status in branch protection. Requiring either before the bootstrap commit exists would block the installation with no gate able to report. Without both, later gates report but do not block — and a green risk decision must never stand in for failed tests.
+   - In the default advisory policy the `risk-gate` status is green even when findings are reported, so the owner can merge and that merge accepts them. In a strict policy it stays red until an independent approval of the exact head exists.
    - The push triggers the `workflow gates` job on the default branch. In a repository with no tests yet the full-suite lane fails by design — a zero-test run is not a pass. Report that as the known bootstrap state; do not add a placeholder test or weaken the lane.
 
 6. **Continue with intake** (§2 → §3) in the same session. Bootstrap is complete; do not stop to ask whether to begin.
@@ -63,7 +64,7 @@ Prompt: `workflow/prompts/intake.md`.
 - Recon first: answer every topic you can from the repository, the brief and git history, with a file path as evidence.
 - Ask at most twelve questions for a project, in rounds of up to three, each answerable by a letter or one line, each with a recommended answer and the cost of getting it wrong.
 - Write `workflow/state/intake.json` (schema in `workflow/STATE.md` §1). The phase exits when `open == 0` and `check-intake.py` passes.
-- Write the one-page digest to `docs/process/DIGEST.md`. **Stop here and wait for the operator.** That approval is the only approval before execution. It also carries one line of merge mode: `human` or `auto`. Propose `auto` only with the operator's explicit approval, then set it in `workflow/config.json`.
+- Write the one-page digest to `docs/process/DIGEST.md`. **Stop here and wait for the operator.** That approval is the only approval before execution. It also carries one line each of merge mode (`human` or `auto`) and review mode (`advisory`, `risk-triggered` or `human`). Propose `auto` or a strict review mode only with the operator's explicit approval, then set it in `workflow/config.json`.
 
 ## 4. Spec pass
 
@@ -83,13 +84,13 @@ For each package, in dependency order:
 2. Prompt: `workflow/prompts/execute.md`. Preflight is read-only; if the boundary is wrong, report before writing code.
 3. Implement, test, checkpoint (`progress.md`, `state.json`).
 4. Prompt: `workflow/prompts/verify.md` in a fresh context. The verifier does not fix code.
-5. `python3 workflow/scripts/risk-gate.py --base main` — `pass` means no trigger; `blocked` means stop and request review. This local run cannot see approvals: CI re-decides on `pull_request` and `pull_request_review` and publishes the verdict as the `risk-gate` status on the head commit.
+5. `python3 workflow/scripts/risk-gate.py --base main` — `pass` or `advisory` means merge may proceed: advisory findings are reported and the owner accepts them by merging. `blocked` means a strict review mode is configured and needs an independent approval of the exact head. This local run cannot see approvals; CI re-decides on `pull_request` and `pull_request_review` and publishes the verdict as the `risk-gate` status on the head commit.
 6. `python3 workflow/scripts/close-wp.py --wp WP-nnn --base main` — appends the changelog line, regenerates the ledger index, validates both, writes the declaration.
-7. Merge per `workflow/config.json` mode, following `workflow/REVIEW.md` §1.1 — only when every required check is green and `risk-gate` is green on the head being merged. Nothing in the kit merges by itself. Do not start the next package in the same turn unless the operator asked for a batch.
+7. Merge per `workflow/config.json` mode, following `workflow/REVIEW.md` §1.1. In `mode.merge: human` the owner reviews and merges the PR; in `auto` the agent merges only when every required check and the `risk-gate` status are green on the head being merged. Nothing in the kit merges by itself. Do not start the next package in the same turn unless the operator asked for a batch.
 
 ## 6. When something blocks
 
 - A missing requirement: stop, record the question in the digest, ask. Do not invent it.
 - A spec gap: `[CONFLICT]` + decision entry; a versioned spec revision, never roadmap-local invention.
 - A limit reached: checkpoint, report the exact remaining step. Do not claim completion.
-- A risk trigger: stop and request review. Do not merge.
+- A material risk finding: in the default advisory mode report it and continue to the owner's merge decision; in a strict review mode stop and request an independent approval. A verification failure always blocks; a risk report never excuses one.

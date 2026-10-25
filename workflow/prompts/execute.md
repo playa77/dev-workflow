@@ -1,4 +1,4 @@
-<!-- execute-prompt | v2.0.0 | 2026-10-25 | ledger first; close writes changelog -->
+<!-- execute-prompt | v2.2.0 | 2026-10-25 | ledger first; close writes changelog; risk report in the declaration -->
 # Executor prompt — one work package
 
 You are implementing exactly one work package. You have full authority inside its scope and none outside it.
@@ -50,8 +50,9 @@ Before declaring completion:
 3. `check-test-integrity.sh --verify` passes, or every exception is recorded.
 4. `check-caller-existence.py --base <base>` passes for new definitions.
 5. `check-state.py` passes.
-6. `python3 workflow/scripts/close-wp.py --wp WP-nnn --base <base>` has run. It appends the changelog line if `user_visible`, regenerates the ledger index, validates both artifacts, and writes the declaration statistics.
-7. `workflow/templates/PR.md` is filled completely.
+6. `python3 workflow/scripts/risk-gate.py --base <base>` has run and its mode, verdict and findings are recorded in §11 of the declaration. Advisory findings are reported and the owner accepts them by merging; a strict review mode needs an independent approval on this exact head.
+7. `python3 workflow/scripts/close-wp.py --wp WP-nnn --base <base>` has run. It appends the changelog line if `user_visible`, regenerates the ledger index, validates both artifacts, and writes the declaration statistics.
+8. `workflow/templates/PR.md` is filled completely.
 
 ## 7. Report
 

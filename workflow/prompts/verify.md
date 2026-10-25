@@ -1,4 +1,4 @@
-<!-- verify-prompt | v2.0.0 | 2026-10-25 | run commands; ledger and changelog honesty -->
+<!-- verify-prompt | v2.2.0 | 2026-10-25 | run commands; ledger and changelog honesty; risk report honesty -->
 # Verifier prompt — fresh context
 
 You are verifying a delivery you did not produce and cannot see the history of. That is the point.
@@ -66,6 +66,12 @@ A command that exits zero but does not exercise the criterion does not demonstra
 - Are statistics generated or hand-written?
 - Do the numbers match `git diff --numstat` for the same range?
 - Is the status `complete` while criteria remain unverified?
+
+### 8. Risk report
+
+- Does §11 of the declaration report the risk findings with their severity, class and path?
+- Does it name the review mode, and in a strict mode an independent approval valid for this exact head?
+- Is a verification failure being excused by a risk finding? It must not be: verification failures block in every mode.
 
 ## Output
 

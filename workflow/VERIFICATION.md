@@ -1,4 +1,4 @@
-<!-- verification-spec | v2.1.0 | 2026-10-24 | transitions delegated; review-aware risk gate; structural gates -->
+<!-- verification-spec | v2.2.0 | 2026-10-25 | solo default; severity-classified risk report; strict review opt-in -->
 # Verification — mechanisms, gates and proof
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** executor, verifier, CI · **Normative for:** how verification is performed and what counts as evidence
@@ -71,21 +71,36 @@ Scope mutations to changed lines covered by tests, with a fixed time budget; ful
 
 These establish that the declaration is complete and the execution happened. They cannot establish semantic completeness; that is the verifier's job.
 
-## 4. Risk triggers
+## 4. Risk findings
 
-`workflow/scripts/risk-scan.py --base <ref>` classifies the diff and reports `requires_human: true` — a non-zero exit when run with `--fail-on-trigger` — for:
+`workflow/scripts/risk-scan.py --base <ref>` classifies the diff. Every finding carries a severity:
 
-- auth, authz, crypto paths;
-- migrations, schema changes, data deletion;
-- billing, payments, money;
-- secrets and `.env` files;
-- dependency manifests and lockfiles;
-- CI configuration;
-- public API surface changes;
-- any modified, renamed, deleted or newly skipped test;
-- any change to `AGENTS.md`, `DECISIONS.md` or `workflow/`.
+| Severity | Classes | Effect |
+|---|---|---|
+| `high` | security, data, money, dependencies, ci, enforcement, data_deletion, test-change, test-skip | material |
+| `normal` | public_api, method | material |
+| `info` | bookkeeping | reported only |
 
-A trigger blocks automatic merge and requests review under `workflow/REVIEW.md`. `risk-gate.py` turns the classification into a decision: `pass` with no trigger, `blocked` without a valid approval on the head commit, `approved` with one. CI runs it on `pull_request` and `pull_request_review` and publishes the verdict as the commit status named by `review.status_context` (default `risk-gate`) on the head, which branch protection must require together with the `workflow gates` check. The gate executes from the repository's protected default branch and reads the head as a diff, so no pull request script or test runs in the job that publishes the status. `risk-scan.py` only classifies; `--fail-on-trigger` makes it fail closed when it is used on its own. A trigger list that fires constantly means the repository should set `mode.merge: human` by evidence, not by policy.
+- **security** — auth, authn, authz, crypto paths, secrets, `.env`, `.pem`, `.key`.
+- **data** — migrations, schema changes; **data_deletion** — destructive SQL, `rm -rf`, `shutil.rmtree`, `os.remove`.
+- **money** — billing, payments.
+- **dependencies** — manifests and lockfiles.
+- **ci** — `.github/**`.
+- **enforcement** — `workflow/scripts/**`, `workflow/config.json`, `workflow/state/test-baseline.json`: the code that enforces the method and the tests.
+- **public_api** — conventional API paths (`**/api/**`, `**/public/**`); in a package initialiser, a change to `__all__` or the removal of a public top-level definition. An ordinary `__init__.py` edit is not a public-API finding.
+- **test-change / test-skip** — a modified, renamed, deleted or newly skipped test.
+- **method** — `AGENTS.md` and the workflow prose, prompts and templates.
+- **bookkeeping** — `DECISIONS.md`, `CHANGELOG.md`, `workflow/process/CALIBRATION.csv`, `workflow/state/install.json`. Reported as `info`; never approval-triggering. Intake state is not bookkeeping: changing recorded requirements is method work (`normal`).
+
+`requires_human: true` means at least one material (`high` or `normal`) finding. `--fail-on-trigger` fails on material findings only; bookkeeping never fails a check.
+
+The policy is `mode.review`:
+
+- `advisory` (default) — `risk-gate.py` reports every finding, publishes a green `risk-gate` status and writes the findings to the Actions job summary. Findings do not fail required checks; the owner's merge accepts them.
+- `risk-triggered` (opt-in) — a material finding stays blocked until an authorized human approves the exact head commit.
+- `human` (opt-in) — every pull request needs that approval.
+
+CI runs the gate on `pull_request` and `pull_request_review` and publishes the verdict as the commit status named by `review.status_context` (default `risk-gate`) on the head, which branch protection must require together with the `workflow gates` check. The gate executes from the repository's protected default branch and reads the head as a diff, so no pull request script or test runs in the job that publishes the status. `risk-scan.py` only classifies; the gate decides. A trigger list that fires material findings on most WPs is evidence the list is too broad, or that the repository genuinely needs a strict review mode.
 
 ## 5. Proportional validation
 
@@ -106,7 +121,7 @@ An exception requires: a named mechanism, a reason, a compensating control, and 
 Valid: "Mutation is skipped for the generated client (`src/gen/**`), compensated by pinning the generator version and diffing its output."
 Invalid: "Mutation is slow on this repo."
 
-The **agent** may grant an exception that names all three and records it in the declaration. Only exceptions on a risk-triggered surface (security, money, data deletion, migrations) require the operator. This is the delegation that makes the rest of the method run without a human queue.
+The **agent** may grant an exception that names all three and records it in the declaration. Only exceptions on a risk-bearing surface (security, money, data deletion, migrations, CI enforcement) require the operator's decision. In the default advisory mode that decision is the merge; a strict review mode records it as the independent approval. This is the delegation that makes the rest of the method run without a human queue.
 
 ## 7. Adapters
 
@@ -142,3 +157,4 @@ The residual risk — a well-formed artifact that is wrong — is the verifier's
 | 2.0.0 | 2026-10-25 | Exceptions delegated to the agent except on risk-triggered surfaces; adds risk triggers and structural gates; paths updated. |
 | 2.0.1 | 2026-10-24 | The risk scan is fail-closed in CI (`--fail-on-trigger`), not advisory. |
 | 2.1.0 | 2026-10-24 | Adds `risk-gate.py`: the scan decides pass/blocked/approved and publishes the verdict as a commit status re-evaluated on review events. |
+| 2.2.0 | 2026-10-25 | Risk findings are severity-classified; bookkeeping never gates, enforcement and CI do. The default is an advisory report accepted at the owner's merge; strict review is opt-in. |

@@ -1,4 +1,4 @@
-<!-- workflow-kit | v2.1.0 | 2026-10-24 | review-aware risk gate; install/CI conformance -->
+<!-- workflow-kit | v2.2.0 | 2026-10-25 | solo default; advisory risk report; strict review opt-in -->
 # Workflow kit — architecture-first agentic delivery
 
 A self-contained method for turning an interview into agent-executed work packages that a human can verify without reading everything. The agent reads `AGENTS.md`; the method lives under `workflow/`; the scripts enforce what prose cannot.
@@ -10,16 +10,16 @@ A self-contained method for turning an interview into agent-executed work packag
 ## The loop
 
 ```
-Intake → Spec (Docs 1–3) → WP → verify → merge → measure
- ≤12 Qs    one pass, one digest  execute  gates   auto*   ledger
+Intake → Spec (Docs 1–3) → WP → verify → CI + risk report → owner merge → measure
+ ≤12 Qs    one pass, one digest  execute  gates   advisory        human         ledger
 ```
 
-\* Automatic when the operator has set `mode.merge: auto`, every gate is green and the `risk-gate` status is green — either no risk trigger, or an authorized human approved the exact head commit. The kit ships no merger. Risk-bearing changes still require a human; see `workflow/REVIEW.md` §1.1.
+\* The install default is `mode.merge: human`: the agent opens the PR and the owner reviews and merges it. `mode.review` defaults to `advisory`, so risk findings are reported prominently but do not fail required checks; the owner's merge accepts them. Automatic merging (`--merge-mode auto`) and independent review (`--review-mode risk-triggered` or `human`) are explicit opt-ins. See `workflow/REVIEW.md` §1.
 
 Two properties make it work:
 
 1. **Docs 1+2+3 are sufficient for a zero-context agent.** Nothing important lives in a conversation.
-2. **Every rule is machine-checked or agent-verified with named evidence.** "A human looked at it" is not enforcement; the human supplies intent, approves the digest, and accepts risk.
+2. **Every rule is machine-checked or agent-verified with named evidence.** "A human looked at it" is not enforcement; the human supplies intent, approves the digest, and accepts risk at merge.
 
 ## Install
 
@@ -56,11 +56,11 @@ The installer runs `python3 <kit>/workflow/scripts/install.py --target . --dry-r
 
 Install is idempotent. It never overwrites `README.md`, `AGENTS.md`, `DECISIONS.md` or `CHANGELOG.md`. A CI file that does not carry the generated marker is left untouched; a generated one is re-rendered on upgrade.
 
-`--upgrade` updates kit-owned files while **preserving** project edits in `workflow/config.json`: it fills only command roles that are missing or unset, and keeps `mode`, `review`, `risk_triggers` and `integrity` as the project set them. Use `--reset-config` to deliberately regenerate the file.
+`--upgrade` updates kit-owned files while **preserving** project edits in `workflow/config.json`: it fills only command roles that are missing or unset, and keeps `mode`, `review`, `risk_triggers` and `integrity` as the project set them. Use `--reset-config` to deliberately regenerate the file. An explicit `--review-mode` on `--upgrade` is the migration path for an existing strict installation; a missing `mode.review` is filled with the solo default.
 
-A new install writes `mode.merge: human`. Automatic merging is enabled with `--merge-mode auto`, or by editing `workflow/config.json` later with the operator's approval.
+A new install writes `mode.merge: human` and `mode.review: advisory`. Automatic merging is enabled with `--merge-mode auto`. Independent review is enabled with `--review-mode risk-triggered` (material findings need an approval of the exact head commit) or `--review-mode human` (every PR needs one). Both are opt-ins and require a second GitHub identity that is not the PR author.
 
-The CI workflow publishes a `risk-gate` commit status on the head of every pull request. **Make it a required status check in branch protection, and require the `workflow gates` check as well** — those are the one-time settings that turn the gates into enforcement points. They are independent: a green risk decision never compensates for failed tests. A PR with no risk trigger gets a green status automatically; a PR with a trigger stays red until an authorized human approves that exact head commit, and CI re-evaluates on the review event without needing a new push. Authorization is `review.approvers` in `workflow/config.json`, or any collaborator with write permission when that list is empty. The gate itself executes from the repository's protected default branch and reads the pull request only as a diff, so a change to the gate scripts cannot alter its own verdict; a change to the workflow remains a `ci` trigger for human review.
+The CI workflow publishes a `risk-gate` commit status on the head of every pull request and writes its findings to the Actions job summary. **Make it a required status check in branch protection, and require the `workflow gates` check as well** — those are the one-time settings that turn the gates into enforcement points. They are independent: a green risk decision never compensates for failed tests. In the default advisory mode a PR with findings still gets a green status; the owner reads the report and merging accepts the risks. In a strict mode the status stays red until an authorized human approves that exact head commit, and CI re-evaluates on the review event without needing a new push. Authorization is `review.approvers` in `workflow/config.json`, or any collaborator with write permission when that list is empty. The gate itself executes from the repository's protected default branch and reads the pull request only as a diff, so a change to the gate scripts cannot alter its own verdict; a change to the workflow remains a `ci` trigger for human attention.
 
 **This repository is the kit source.** It carries no `DECISIONS.md` or `CHANGELOG.md` of its own: those are created in a project when the kit is installed, and `doctor.py` distinguishes the two layouts (`workflow/state/install.json` records `"kit": true` here).
 
@@ -79,7 +79,7 @@ The CI workflow publishes a `risk-gate` commit status on the head of every pull 
 | `workflow/prompts/` | `intake`, `spec`, `execute`, `verify` |
 | `workflow/references/` | Section templates loaded on demand |
 | `workflow/templates/` | WP brief, delivery declaration, digest, checkpoints, and the seeded `DECISIONS.md` / `CHANGELOG.md` |
-| `workflow/scripts/` | Installer, doctor, gates, ledger and changelog checks, risk scan and review-aware gate, role runner, stats |
+| `workflow/scripts/` | Installer, doctor, gates, ledger and changelog checks, risk scanner and gate (advisory default; strict opt-in), role runner, stats |
 | `.github/workflows/wp.yml` | CI lanes for the kit itself; the template written into projects is in `workflow/scripts/install.py` |
 
 Project artifacts created at install: `DECISIONS.md` (one append-only ledger with a generated index) and `CHANGELOG.md` (curated, user-visible changes, every line citing a decision and a work package).
@@ -92,6 +92,14 @@ Project artifacts created at install: `DECISIONS.md` (one append-only ledger wit
 4. **Length caps.** `AGENTS.md` under 100 lines; prompts under 120. A long instruction file causes the instructions that matter to be ignored.
 5. **Review is the constraint, not context.** A package that cannot be reviewed in one pass is too large.
 6. **Decisions are load-bearing.** The ledger is read before any approach is proposed; an entry exists when a choice constrains future work.
+
+## What changed in 2.2.0
+
+- **Solo operation is the default.** A new install writes `mode.merge: human` and `mode.review: advisory`. The agent implements, tests, opens the PR; CI validates and reports risks; the owner reviews and merges. No second GitHub identity is required. Merging accepts the reported risks.
+- **Risk findings are advisory by default.** `risk-gate.py` reports `pass` (no finding) or `advisory` (findings present) and publishes a green `risk-gate` status. Findings are written to the Actions job summary with severity, class, path and reason. They never fail a required check.
+- **Strict review is opt-in.** `mode.review: risk-triggered` requires an independent approval of the exact head commit for material findings; `mode.review: human` requires one for every PR. `mode.merge: auto` remains an explicit opt-in. The approval predicate is unchanged and still enforced by the commit status.
+- **Risk classification is proportionate.** Bookkeeping (`DECISIONS.md`, `CHANGELOG.md`, calibration, install state) is `info` and never approval-triggering. Method prose is `normal`; CI, workflow enforcement, security, data, money, dependencies, destructive operations and weakened tests are `high`. An ordinary `__init__.py` edit is no longer a public-API finding; an `__all__` change or removal of a public top-level definition is.
+- **Upgrade preserves configuration and offers migration.** Existing `mode`, `review`, `risk_triggers` and `integrity` are kept; a missing `mode.review` is filled with `advisory`; `--upgrade --review-mode advisory` migrates a strict installation explicitly. `doctor.py` and `check-config.py` now report the active policy and what it requires.
 
 ## What changed in 2.1.0
 
@@ -128,7 +136,9 @@ Project artifacts created at install: `DECISIONS.md` (one append-only ledger wit
 - **Mutation testing** is specified but not implemented; `workflow/VERIFICATION.md` §2.3 states the scope policy and hook point.
 - **Review quality is not mechanisable.** Risk triggers and milestone sampling are the defence; they depend on the operator actually looking.
 - **No merge runner.** `mode.merge: auto` is a permission, not a daemon. The executing agent performs the merge sequence in `workflow/REVIEW.md` §1.1 after CI is green; nothing in the kit can merge a pull request by itself.
+- **Risk review is advisory by default.** CI reports findings; the owner's merge is the acceptance. Strict independent review (`risk-triggered`/`human`) is opt-in and requires a second GitHub identity that is not the PR author. A solo identity cannot satisfy its own approval rule.
 - **Branch protection is external.** The gate publishes a `risk-gate` commit status; requiring it **together with the `workflow gates` check** is a repository setting the installer cannot make. Without both, the gates report but do not block.
+- **The first PR that changes the gate runs the previous gate.** The risk job deliberately executes the gate implementation from the protected default branch, so a PR that fixes the gate is evaluated by the version already merged. That is the trust boundary, not a bug; subsequent PRs use the corrected policy.
 - **Fork pull requests cannot publish the status.** GitHub gives workflows triggered by fork PRs a read-only `GITHUB_TOKEN`, so the gate cannot record its verdict and the required status never appears. The kit assumes branches in the same repository, which is how the agent workflow operates.
 - **Verifier separation is host-provided.** The method requires a fresh-context verifier but cannot spawn one. The host agent must start a new context (a subagent or a new session) and give it only the brief, the diff and the command output.
 - **The ledger assumes tens of decisions per project.** Past ~150 entries, the single-file ledger design needs revisiting.
