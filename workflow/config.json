@@ -80,8 +80,7 @@
       "DECISIONS.md",
       "CHANGELOG.md",
       "workflow/process/CALIBRATION.csv",
-      "workflow/state/install.json",
-      "workflow/state/intake.json"
+      "workflow/state/install.json"
     ]
   }
 }

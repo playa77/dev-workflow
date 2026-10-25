@@ -58,9 +58,11 @@ DEFAULT_TRIGGERS = {
     # __all__ / public-definition heuristic in scan(), not by a blanket glob.
     "public_api": ["**/api/**", "**/public/**"],
     # Routine records: reported so they are visible, never approval-triggering.
+    # Intake state is deliberately not here: changing recorded requirements is
+    # method work, not bookkeeping.
     "bookkeeping": ["DECISIONS.md", "CHANGELOG.md",
                     "workflow/process/CALIBRATION.csv",
-                    "workflow/state/install.json", "workflow/state/intake.json"],
+                    "workflow/state/install.json"],
 }
 
 SEVERITY = {

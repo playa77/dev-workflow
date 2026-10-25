@@ -24,7 +24,7 @@ The default is solo operation — one developer and an agent, possibly sharing a
 |---|---|---|
 | `high` | material | auth/crypto, migrations, money, dependencies, CI, workflow enforcement, destructive operations, a changed or skipped test |
 | `normal` | material | public API, method prose |
-| `info` | bookkeeping | `DECISIONS.md`, `CHANGELOG.md`, calibration, install/intake state |
+| `info` | bookkeeping | `DECISIONS.md`, `CHANGELOG.md`, calibration, install state |
 
 Only material findings are what a strict review mode gates on. `info` findings are reported and never require an approval.
 

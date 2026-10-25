@@ -90,7 +90,7 @@ These establish that the declaration is complete and the execution happened. The
 - **public_api** — conventional API paths (`**/api/**`, `**/public/**`); in a package initialiser, a change to `__all__` or the removal of a public top-level definition. An ordinary `__init__.py` edit is not a public-API finding.
 - **test-change / test-skip** — a modified, renamed, deleted or newly skipped test.
 - **method** — `AGENTS.md` and the workflow prose, prompts and templates.
-- **bookkeeping** — `DECISIONS.md`, `CHANGELOG.md`, `workflow/process/CALIBRATION.csv`, `workflow/state/install.json`, `workflow/state/intake.json`. Reported as `info`; never approval-triggering.
+- **bookkeeping** — `DECISIONS.md`, `CHANGELOG.md`, `workflow/process/CALIBRATION.csv`, `workflow/state/install.json`. Reported as `info`; never approval-triggering. Intake state is not bookkeeping: changing recorded requirements is method work (`normal`).
 
 `requires_human: true` means at least one material (`high` or `normal`) finding. `--fail-on-trigger` fails on material findings only; bookkeeping never fails a check.
 
