@@ -245,10 +245,9 @@ def scan(cwd: Path, base: str, head: str = "HEAD") -> dict:
                 triggers.append(trigger("public_api", changed_path, reason))
 
     for path, changes in sections.items():
-        # Tests are already material as `test-change`, and their fixtures often
-        # contain destructive SQL legitimately. The scanner's own source defines
-        # the patterns it searches for; both are false positives here.
-        if not is_code_path(path) or is_test(path) or path == SELF_PATH:
+        # The scanner's own source defines the patterns it searches for; that is
+        # the one unavoidable false positive. Prose is excluded by suffix.
+        if not is_code_path(path) or path == SELF_PATH:
             continue
         for line in changes:
             if line.startswith("+") and DELETION_RE.search(line[1:]):

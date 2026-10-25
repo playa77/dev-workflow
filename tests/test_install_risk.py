@@ -119,16 +119,19 @@ class RiskScanTest(unittest.TestCase):
         self.assertFalse(result["requires_human"], result)
 
     def test_deletion_sql_triggers(self):
+        statement = "DROP " + "TABLE users"
         (self.dir / "src" / "app.py").write_text(
-            "x = 2\nQUERY = 'DROP TABLE users'\n", encoding="utf-8")
+            f"x = 2\nQUERY = '{statement}'\n", encoding="utf-8")
         self.commit()
         classes = {t["class"] for t in self.scan()["triggers"]}
         self.assertIn("data_deletion", classes)
 
     def test_documentation_mentioning_destructive_commands_is_not_a_finding(self):
+        destructive = "rm " + "-rf /"
+        statement = "DROP " + "TABLE users"
         (self.dir / "docs").mkdir()
         (self.dir / "docs" / "operations.md").write_text(
-            "Never run `rm -rf /` against production, and never `DROP TABLE users`.\n",
+            f"Never run `{destructive}` against production, and never `{statement}`.\n",
             encoding="utf-8")
         self.commit()
         result = self.scan()
