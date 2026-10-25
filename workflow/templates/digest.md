@@ -35,6 +35,15 @@ The one page the operator approves. Everything else in Docs 1–3 exists for the
 |---|---|
 | `D-<nnn>` | <one line> |
 
+## Operating mode
+
+| Setting | Value | Effect |
+|---|---|---|
+| `mode.merge` | `human` (default) | The agent opens the PR; the owner reviews and merges it. `auto` is an explicit opt-in. |
+| `mode.review` | `advisory` (default) | CI reports risk findings; the owner's merge accepts them. `risk-triggered` or `human` requires an independent approval on the exact head and is an explicit opt-in. |
+
+Changing either value is an operator decision; state it here before execution.
+
 ## Approve
 
 Reply with `approve`, or list corrections. Silence is not approval.

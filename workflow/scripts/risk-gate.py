@@ -1,18 +1,28 @@
 #!/usr/bin/env python3
-"""Decide whether a pull request may merge, given risk triggers and reviews.
+"""Decide whether a pull request may merge, given risk findings and reviews.
 
 Usage:
     python3 workflow/scripts/risk-gate.py --base origin/main [--head SHA]
                                          [--pr N] [--repo owner/name]
                                          [--author LOGIN] [--publish] [--json]
 
+Review modes (`mode.review` in workflow/config.json):
+    advisory       the default. Risk findings are reported; they do not fail a
+                   required check and need no independent approval. The owner's
+                   merge of the pull request is the acceptance of the findings.
+    risk-triggered opt-in. A material finding (severity high or normal)
+                   requires an independent approval of the exact head commit.
+    human          opt-in. Every pull request requires an independent approval
+                   of the exact head commit.
+
 Verdicts:
-    pass      no risk trigger; merge may proceed
-    approved  risk triggers, and an authorized human approved the head commit
-    blocked   risk triggers, and no valid approval on the head commit
+    pass      no finding, or only bookkeeping (`info`) findings in a strict mode
+    advisory  findings in the default advisory mode; merge may proceed
+    approved  risk material to the mode, and an authorized human approved the head
+    blocked   risk material to the mode, and no valid approval on the head
     error     the scan or the GitHub API failed
 
-Exit codes: 0 pass/approved, 1 blocked, 2 error.
+Exit codes: 0 pass/advisory/approved, 1 blocked, 2 error.
 
 A valid approval is the reviewer's latest review on the pull request, is
 APPROVED, carries `commit_id` equal to the head commit, comes from someone
@@ -20,10 +30,10 @@ other than the PR author and not a bot, and comes from either
 `review.approvers` in workflow/config.json or, when that list is empty, a
 collaborator with write, maintain or admin permission.
 
-With --publish the verdict is also written as a commit status on the head
-commit, context `review.status_context` (default `risk-gate`). CI runs this on
-pull_request and pull_request_review events, so an approval re-evaluates
-without a new commit; branch protection must require that status.
+With --publish the verdict is written as a commit status on the head commit,
+context `review.status_context` (default `risk-gate`). When GitHub exposes a
+step summary (`GITHUB_STEP_SUMMARY`), the findings are also written there so the
+risk report is visible on the Actions run without opening the log.
 
 Trust boundary: run this script from the repository's protected default branch,
 never from the pull request. `--head` names the commit to inspect; the scan
@@ -44,22 +54,34 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-USER_AGENT = "workflow-kit/2.1 risk-gate"
+USER_AGENT = "workflow-kit/2.2 risk-gate"
 BOT_RE = re.compile(r"\[bot\]$", re.I)
 REVIEW_STATES = {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
 WRITE_PERMISSIONS = {"admin", "maintain", "write"}
+REVIEW_MODES = {"advisory", "risk-triggered", "human"}
+DEFAULT_REVIEW_MODE = "advisory"
 
 
-def load_settings(root: Path) -> tuple[list[str], str]:
+def load_settings(root: Path) -> dict:
     path = root / "workflow" / "config.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         data = {}
+    if not isinstance(data, dict):
+        data = {}
+    mode = data.get("mode") if isinstance(data.get("mode"), dict) else {}
     review = data.get("review") if isinstance(data.get("review"), dict) else {}
+
+    review_mode = str(mode.get("review") or DEFAULT_REVIEW_MODE).strip().lower()
+    if review_mode not in REVIEW_MODES:
+        # An unreadable policy must not silently become permissive. CI's
+        # check-config.py reports the invalid value as a failure as well.
+        review_mode = "risk-triggered"
+
     approvers = [str(a).strip() for a in (review.get("approvers") or []) if str(a).strip()]
     context = str(review.get("status_context") or "risk-gate").strip() or "risk-gate"
-    return approvers, context
+    return {"review_mode": review_mode, "approvers": approvers, "context": context}
 
 
 def scan(root: Path, base: str, head: str) -> dict:
@@ -75,6 +97,15 @@ def scan(root: Path, base: str, head: str) -> dict:
         return json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"risk scan output is not JSON: {exc}") from exc
+
+
+def is_material(trigger: dict) -> bool:
+    """A missing severity is treated as material; only explicit info is routine."""
+    return str(trigger.get("severity") or "high").lower() != "info"
+
+
+def material_triggers(triggers: list[dict]) -> list[dict]:
+    return [t for t in triggers if is_material(t)]
 
 
 def valid_approvals(reviews: list[dict], head: str, author: str,
@@ -115,30 +146,54 @@ def valid_approvals(reviews: list[dict], head: str, author: str,
 
 
 def decide(result: dict, reviews: list[dict] | None, head: str, author: str,
-           authorized) -> dict:
-    triggers = result.get("triggers") or []
-    requires_human = bool(result.get("requires_human") or triggers)
+           authorized, review_mode: str = DEFAULT_REVIEW_MODE) -> dict:
+    triggers = list(result.get("triggers") or [])
+    material = material_triggers(triggers)
+    approval_required = review_mode == "human" or (
+        review_mode == "risk-triggered" and bool(material)
+    )
     decision = {
         "verdict": "pass",
+        "mode": review_mode,
         "head": head,
-        "requires_human": requires_human,
+        # Scan classification: a material finding exists. Whether it needs an
+        # approval is review_mode's decision, reported as requires_approval.
+        "risk_detected": bool(triggers),
+        "requires_human": bool(material),
+        "requires_approval": approval_required,
         "triggers": triggers,
         "approvals": [],
-        "reasons": ["no risk trigger"],
+        "reasons": [],
     }
-    if not requires_human:
+
+    if review_mode == "advisory":
+        if triggers:
+            decision.update(
+                verdict="advisory",
+                reasons=[f"{len(triggers)} risk finding(s) reported; advisory — "
+                         "merge is the owner's decision"],
+            )
+        else:
+            decision["reasons"] = ["no risk finding"]
         return decision
 
-    approvals = valid_approvals(reviews or [], head, author, authorized) if reviews is not None else []
+    if not approval_required:
+        decision["reasons"] = ["no material risk finding"] if triggers else ["no risk finding"]
+        return decision
+
+    approvals = valid_approvals(reviews or [], head, author, authorized) \
+        if reviews is not None else []
     if approvals:
         decision.update(verdict="approved", approvals=approvals,
                         reasons=[f"approved by {', '.join(a['user'] for a in approvals)}"])
         return decision
 
     if reviews is None:
-        reason = "risk detected; no pull-request context to resolve reviews"
+        reason = "risk material to the review mode; no pull-request context to resolve reviews"
+    elif review_mode == "human":
+        reason = f"human review mode; no valid approval on {head[:12]}"
     else:
-        reason = f"risk detected; no valid approval on {head[:12]}"
+        reason = f"material risk finding; no valid approval on {head[:12]}"
     decision.update(verdict="blocked", reasons=[reason])
     return decision
 
@@ -220,22 +275,93 @@ def authorizer(approvers: list[str], repo: str, tok: str):
     return authorized
 
 
+def status_state(decision: dict) -> str:
+    return "success" if decision["verdict"] in {"pass", "advisory", "approved"} else "failure"
+
+
+def status_description(decision: dict) -> str:
+    verdict = decision["verdict"]
+    triggers = decision.get("triggers") or []
+    if verdict == "pass":
+        return "no risk trigger"
+    if verdict == "advisory":
+        return (f"{len(triggers)} risk finding(s); advisory — owner accepts on merge")
+    if verdict == "approved":
+        return "approved by " + ", ".join(a["user"] for a in decision["approvals"])
+    if triggers:
+        return (f"{len(triggers)} risk finding(s); independent approval required "
+                f"for {decision['head'][:12]}")
+    return f"independent approval required for {decision['head'][:12]}"
+
+
 def publish(repo: str, sha: str, decision: dict, context: str, tok: str) -> None:
-    state = "success" if decision["verdict"] in {"pass", "approved"} else "failure"
-    if decision["verdict"] == "pass":
-        description = "no risk trigger"
-    elif decision["verdict"] == "approved":
-        description = "approved by " + ", ".join(a["user"] for a in decision["approvals"])
-    else:
-        description = (f"{len(decision['triggers'])} risk trigger(s); "
-                       f"approval required for {sha[:12]}")
-    payload = {"state": state, "context": context, "description": description[:140]}
+    payload = {
+        "state": status_state(decision),
+        "context": context,
+        "description": status_description(decision)[:140],
+    }
     target = os.environ.get("RUN_URL", "").strip()
     if target:
         payload["target_url"] = target
     with _request(f"{api_base()}/repos/{repo}/statuses/{sha}", tok,
                   method="POST", payload=payload) as response:
         response.read()
+
+
+def _cell(value) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ").strip()
+
+
+def summary_markdown(decision: dict, context: str) -> str:
+    triggers = decision.get("triggers") or []
+    material = material_triggers(triggers)
+    lines = [
+        f"## Risk gate: `{decision['verdict']}`",
+        "",
+        f"- Review mode: `{decision['mode']}`",
+        f"- Head: `{decision['head'][:12]}`",
+        f"- Status context: `{context}`",
+        f"- Findings: {len(triggers)} ({len(material)} material, "
+        f"{len(triggers) - len(material)} bookkeeping)",
+    ]
+    if triggers:
+        lines += ["", "| Severity | Class | Path | Finding |", "|---|---|---|---|"]
+        for item in triggers:
+            lines.append(
+                f"| {_cell(item.get('severity', 'normal'))} "
+                f"| `{_cell(item.get('class', ''))}` "
+                f"| `{_cell(item.get('path', ''))}` "
+                f"| {_cell(item.get('reason', ''))} |"
+            )
+    else:
+        lines += ["", "No risk findings."]
+    lines.append("")
+
+    verdict = decision["verdict"]
+    if verdict == "advisory":
+        lines.append("> **Advisory:** these findings do not fail required checks. "
+                     "Merging the pull request records the owner's acceptance of them.")
+    elif verdict == "blocked":
+        lines.append("> **Blocked:** this review mode requires an independent approval "
+                     f"of `{decision['head'][:12]}` before merge.")
+    elif verdict == "approved":
+        lines.append("> **Approved** by " +
+                     ", ".join(a["user"] for a in decision["approvals"]) + ".")
+    else:
+        lines.append("> No approval is required.")
+    return "\n".join(lines) + "\n"
+
+
+def write_summary(decision: dict, context: str) -> None:
+    target = os.environ.get("GITHUB_STEP_SUMMARY", "").strip()
+    if not target:
+        return
+    try:
+        with open(target, "a", encoding="utf-8") as handle:
+            handle.write(summary_markdown(decision, context))
+    except OSError:
+        # A missing summary file must never change the gate's verdict.
+        pass
 
 
 def git_head(root: Path) -> str:
@@ -262,18 +388,23 @@ def main(argv: list[str]) -> int:
     root = Path(args.root).resolve()
     try:
         head = args.head.strip() or git_head(root)
-        approvers, context = load_settings(root)
+        settings = load_settings(root)
         result = scan(root, args.base, head)
         tok = token()
         reviews = None
-        if args.pr and args.repo and tok:
+        if settings["review_mode"] != "advisory" and args.pr and args.repo and tok:
             reviews = fetch_reviews(args.repo, args.pr, tok)
-        decision = decide(result, reviews, head, args.author, authorizer(approvers, args.repo, tok))
+        decision = decide(
+            result, reviews, head, args.author,
+            authorizer(settings["approvers"], args.repo, tok),
+            review_mode=settings["review_mode"],
+        )
 
         if args.publish:
             if not (args.repo and tok and head):
                 raise RuntimeError("--publish needs a repository, a token and a head commit")
-            publish(args.repo, head, decision, context, tok)
+            publish(args.repo, head, decision, settings["context"], tok)
+        write_summary(decision, settings["context"])
     except RuntimeError as exc:
         print(f"risk-gate: error: {exc}", file=sys.stderr)
         return 2
@@ -282,6 +413,10 @@ def main(argv: list[str]) -> int:
     if decision["verdict"] == "blocked":
         print(f"risk-gate: blocked — {decision['reasons'][0]}", file=sys.stderr)
         return 1
+    if decision["verdict"] == "advisory":
+        print(f"risk-gate: advisory — {len(decision['triggers'])} finding(s) reported; "
+              "required checks are unaffected and the owner accepts them by merging",
+              file=sys.stderr)
     return 0
 
 

@@ -45,9 +45,9 @@ KIT_ONLY = [
 # the preserved file still enforces the policy.
 CI_POLICY = [
     ("pull_request_review",
-     "no pull_request_review trigger: an approval would not re-evaluate the gate"),
+     "no pull_request_review trigger: a strict-mode approval would not re-evaluate the gate"),
     ("risk-gate.py",
-     "no risk-gate.py lane: the risk decision is not review-aware"),
+     "no risk-gate.py lane: the risk decision is not recorded"),
     ("--publish",
      "risk-gate.py does not publish its verdict as a commit status"),
     ("statuses: write",
@@ -62,6 +62,31 @@ CI_POLICY = [
     ("persist-credentials: false",
      "the test job leaves checkout credentials in .git/config for pull request code"),
 ]
+
+
+def review_mode_notes(root: Path) -> list[str]:
+    """Explain the active review policy and what it requires of the operator."""
+    try:
+        data = json.loads((root / "workflow" / "config.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    mode_value = data.get("mode")
+    mode = mode_value if isinstance(mode_value, dict) else {}
+    review = str(mode.get("review") or "").strip().lower()
+    if review == "advisory":
+        return ["review mode: advisory (solo default) — risk findings are reported; "
+                "the owner accepts them by merging the pull request"]
+    if review == "risk-triggered":
+        return ["review mode: risk-triggered (opt-in) — material risk findings require "
+                "an independent approval on the exact head commit; a second GitHub "
+                "identity is needed"]
+    if review == "human":
+        return ["review mode: human (opt-in) — every pull request requires an "
+                "independent approval on the exact head commit; a second GitHub "
+                "identity is needed"]
+    return []
 
 
 def workflow_level_status_write(text: str) -> bool:
@@ -161,6 +186,8 @@ def main(argv: list[str]) -> int:
     if kit:
         notes.append("kit repository: DECISIONS.md and CHANGELOG.md are created "
                      "in projects at install, not tracked here")
+
+    notes.extend(review_mode_notes(root))
 
     state = root / "workflow" / "state" / "install.json"
     if state.exists():

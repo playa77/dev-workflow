@@ -1,4 +1,4 @@
-<!-- agents-constitution | v2.1.0 | 2026-10-24 | review-aware risk gate; ledger and changelog; workflow/ layout -->
+<!-- agents-constitution | v2.2.0 | 2026-10-25 | solo default; advisory risk report; strict review opt-in -->
 # AGENTS.md — Operating Constitution
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** every coding agent, every session · **Normative for:** delivery unit, execution policy, prohibitions
@@ -54,8 +54,11 @@ This is the only instruction file every agent is guaranteed to read. Rules live 
 
 ## 8. Review and delivery
 
-- Machine gates first, fresh-context verifier second, risk-triggered human review third.
-- Merge per `workflow/config.json` mode. A risk trigger requires an authorized human's approval of the exact head commit, recorded as the `risk-gate` status; a blocked gate is not mergeable.
+- Machine gates first, a fresh-context verifier second, risk reporting third.
+- Verification failures always block: failing tests, invalid declarations or specifications, broken test integrity, failed structural checks, missing mandatory evidence.
+- The default is solo operation: `mode.merge: human` and `mode.review: advisory`. CI reports risk findings prominently; the owner reviews and merges the PR, and that merge accepts the reported risks. No second GitHub identity is required.
+- Stricter policy is opt-in: `mode.review: risk-triggered` requires an independent approval of the exact head commit for material findings; `mode.review: human` requires one for every PR; `mode.merge: auto` lets the agent merge only after every required check and the `risk-gate` status are green. A blocked gate is not mergeable.
+- Bookkeeping findings (decision ledger, changelog, calibration) are reported, never approval-triggering.
 - A skipped required lane is a failed lane.
 - Write the changelog line and any decision entries at close. Do not start the next WP.
 
@@ -92,3 +95,4 @@ This is the only instruction file every agent is guaranteed to read. Rules live 
 | 1.0.0 | 2026-10-24 | Initial constitution. |
 | 2.0.0 | 2026-10-25 | Enforcement is machine-checked or agent-verified; "human-gated" removed. Adds the decision ledger and changelog. Updates paths to `workflow/`. |
 | 2.1.0 | 2026-10-24 | Risk-triggered review is a review-aware gate: an authorized approval of the exact head commit unblocks it, recorded as a commit status. |
+| 2.2.0 | 2026-10-25 | Solo operation is the default: the owner merges and accepts advisory risk findings. Independent review and automatic merging are explicit opt-ins. |

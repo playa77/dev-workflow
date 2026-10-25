@@ -52,7 +52,7 @@ The candidate revision in the full run must equal the head being delivered.
 
 ## 6. Deviations and exceptions
 
-<None, or what deviated, why, and the compensating control. An agent-granted exception names mechanism, reason and control; a risk-triggered exception names the operator approval.>
+<None, or what deviated, why, and the compensating control. An agent-granted exception names mechanism, reason and control; an exception on a risk-bearing surface names the operator decision (the merge in advisory mode, or the independent approval in a strict mode).>
 
 ## 7. Decisions
 
@@ -82,12 +82,13 @@ Verdict: `<pass | fail | needs-evidence>`
 
 ## 11. Risk scan
 
-Output of `python3 workflow/scripts/risk-scan.py --base <base> --fail-on-trigger`:
+Output of `python3 workflow/scripts/risk-scan.py --base <base>`:
 
 ```
-<triggers: none | list>
+<findings: none | list with severity, class, path and reason>
 requires_human: <true | false>
-risk-gate: <pass | blocked | approved>
+review mode: <advisory | risk-triggered | human>
+risk-gate: <pass | advisory | blocked | approved>
 ```
 
-If `requires_human` is true, the PR is not merged until the `risk-gate` status is `success`: either no trigger, or an authorized human approved the exact head commit. A blocked gate is not merged automatically.
+In the default `advisory` policy, findings are reported and do not fail required checks; merging this PR records the owner's acceptance of them. In `risk-triggered` or `human`, a material finding requires an independent approval of this exact head and the `risk-gate` status must be `success`. A verification failure is never excused by this section.

@@ -77,18 +77,24 @@ class InstallContractTest(unittest.TestCase):
         self.assertIn("Delivery unit", agents)
         self.assertNotIn("<!-- workflow:constitution -->", agents)
 
-    def test_new_install_defaults_to_human_merge_and_can_opt_in(self):
+    def test_new_install_defaults_to_solo_policy_and_can_opt_in(self):
         self.install()
-        self.assertEqual(self.config()["mode"]["merge"], "human")
-        self.assertEqual(self.config()["review"],
+        cfg = self.config()
+        self.assertEqual(cfg["mode"]["merge"], "human")
+        self.assertEqual(cfg["mode"]["review"], "advisory")
+        self.assertEqual(cfg["review"],
                          {"approvers": [], "status_context": "risk-gate"})
+
         other = tempfile.TemporaryDirectory()
         self.addCleanup(other.cleanup)
         proc = run([sys.executable, str(SCRIPTS / "install.py"),
-                    "--target", other.name, "--source", str(ROOT), "--merge-mode", "auto"])
+                    "--target", other.name, "--source", str(ROOT),
+                    "--merge-mode", "auto", "--review-mode", "risk-triggered"])
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        cfg = json.loads((Path(other.name) / "workflow" / "config.json").read_text(encoding="utf-8"))
-        self.assertEqual(cfg["mode"]["merge"], "auto")
+        opted = json.loads((Path(other.name) / "workflow" / "config.json")
+                           .read_text(encoding="utf-8"))
+        self.assertEqual(opted["mode"]["merge"], "auto")
+        self.assertEqual(opted["mode"]["review"], "risk-triggered")
 
     def test_dry_run_writes_nothing(self):
         proc = self.install("--dry-run")
@@ -104,6 +110,8 @@ class InstallContractTest(unittest.TestCase):
         cfg = self.config()
         cfg["commands"]["test_full"] = "make verify"
         cfg["mode"]["merge"] = "auto"
+        cfg["mode"]["review"] = "risk-triggered"
+        cfg["review"]["approvers"] = ["alice"]
         cfg["risk_triggers"] = {"custom": ["**/ledger/**"]}
         cfg["stack"] = ["python"]
         del cfg["commands"]["lint"]
@@ -114,12 +122,35 @@ class InstallContractTest(unittest.TestCase):
         after = self.config()
         self.assertEqual(after["commands"]["test_full"], "make verify")
         self.assertEqual(after["mode"]["merge"], "auto")
+        self.assertEqual(after["mode"]["review"], "risk-triggered")
+        self.assertEqual(after["review"]["approvers"], ["alice"])
         self.assertEqual(after["risk_triggers"], {"custom": ["**/ledger/**"]})
         self.assertEqual(after["stack"], ["python"])
         self.assertIn("lint", after["commands"])
+        self.assertIn("review mode: risk-triggered", proc.stdout)
+        self.assertIn("--review-mode advisory", proc.stdout)
         ci = (self.dir / ".github" / "workflows" / "wp.yml").read_text(encoding="utf-8")
         self.assertIn("run-role.py test_full", ci)
         self.assertEqual(after["review"]["status_context"], "risk-gate")
+
+        # The explicit flag is the migration path; the project's merge mode and
+        # approvers survive it.
+        migrated = self.install("--upgrade", "--review-mode", "advisory")
+        self.assertEqual(migrated.returncode, 0, migrated.stdout + migrated.stderr)
+        final = self.config()
+        self.assertEqual(final["mode"]["review"], "advisory")
+        self.assertEqual(final["mode"]["merge"], "auto")
+        self.assertEqual(final["review"]["approvers"], ["alice"])
+
+    def test_upgrade_fills_a_missing_review_mode_with_advisory(self):
+        self.install()
+        path = self.dir / "workflow" / "config.json"
+        cfg = self.config()
+        del cfg["mode"]["review"]
+        path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        proc = self.install("--upgrade")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(self.config()["mode"]["review"], "advisory")
 
     def test_detection_keeps_pytest_style_tests_on_pytest(self):
         (self.dir / "pyproject.toml").write_text('[project]\nname = "x"\n', encoding="utf-8")
@@ -184,6 +215,48 @@ class DoctorKitTest(unittest.TestCase):
         proc = run([sys.executable, str(SCRIPTS / "doctor.py"), "--root", str(ROOT)])
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("doctor: ok", proc.stdout)
+
+
+class CheckConfigModeTest(unittest.TestCase):
+    ROLES = {"test_affected": "true", "test_full": "true", "test_smoke": "true",
+             "lint": "true", "build": "true", "integrity": "true",
+             "callers": "true", "stats": "true"}
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def check(self, mode):
+        path = self.dir / "config.json"
+        path.write_text(json.dumps({"commands": self.ROLES, "mode": mode}),
+                        encoding="utf-8")
+        return run([sys.executable, str(SCRIPTS / "check-config.py"),
+                    "--path", str(path)])
+
+    def test_advisory_is_a_valid_mode_and_is_reported(self):
+        proc = self.check({"merge": "human", "review": "advisory"})
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("mode.review=advisory is the solo default", proc.stdout)
+
+    def test_strict_modes_are_valid_and_report_the_identity_cost(self):
+        for mode in ("risk-triggered", "human"):
+            with self.subTest(mode=mode):
+                proc = self.check({"merge": "human", "review": mode})
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertIn("second GitHub identity", proc.stdout)
+
+    def test_an_unknown_review_mode_fails_validation(self):
+        proc = self.check({"merge": "human", "review": "sometimes"})
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("mode.review must be one of", proc.stdout)
+
+    def test_a_missing_review_mode_fails_validation(self):
+        proc = self.check({"merge": "human"})
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("mode.review must be one of", proc.stdout)
 
 
 class RiskGateExitCodeTest(unittest.TestCase):

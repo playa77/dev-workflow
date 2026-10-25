@@ -1,4 +1,4 @@
-<!-- workflow-spec | v2.1.0 | 2026-10-24 | human gates collapsed; review-aware risk gate; workflow/ layout -->
+<!-- workflow-spec | v2.2.0 | 2026-10-25 | solo default; advisory risk report; strict review opt-in -->
 # The Workflow — normative process specification
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** operator, architect, executor, verifier · **Normative for:** phases, gates, roles, artifact authority, WP lifecycle
@@ -15,13 +15,13 @@ A zero-context coding agent can implement a work package correctly, and a human 
 
 | Role | Who | May decide | May not decide |
 |---|---|---|---|
-| **Operator** | Dan | Answer the intake; approve the digest; accept risk on a trigger; amend this method | Delegate the digest approval |
+| **Operator** | Dan | Answer the intake; approve the digest; review and merge PRs; accept reported risks; amend this method | Delegate the digest approval |
 | **Architect** | agent, spec prompt | Wording, structure, proposed options | Buy a requirement nobody confirmed |
 | **Executor** | coding agent | Implementation, tests, refactors inside scope | Change scope, weaken tests, change model or effort |
 | **Verifier** | fresh-context agent | Whether evidence supports each criterion | Fix the code it verifies |
 | **CI** | scripts | Pass/fail on declarations and mechanical guards | Semantic completeness |
 
-Human-only decisions: the intake answers, the digest approval, risk acceptance on a trigger, and changes to `AGENTS.md`, this document, or `DECISIONS.md` entries that were adopted by the operator. Everything else is agent work or a script.
+Human-only decisions: the intake answers, the digest approval, the merge decision, and changes to `AGENTS.md`, this document, or `DECISIONS.md` entries that were adopted by the operator. Everything else is agent work or a script.
 
 The verifier's separation is real only if the context is: no script can create one. The host agent starts a subagent or a new session and hands it the brief, the diff and the command output — not this conversation.
 
@@ -87,13 +87,13 @@ One WP per branch and PR. Prompt: `workflow/prompts/execute.md`. Brief: `workflo
 
 Order is fixed:
 
-1. machine gates (`workflow/VERIFICATION.md`, CI);
+1. machine gates (`workflow/VERIFICATION.md`, CI); a verification failure always blocks;
 2. fresh-context verifier (`workflow/prompts/verify.md`);
-3. risk gate (`workflow/scripts/risk-gate.py`, executed from the repository's protected default branch; CI publishes its verdict as the `risk-gate` status on the head commit and re-runs on review events);
-4. human review **only if the scan triggers**, otherwise at the milestone audit (`workflow/REVIEW.md`);
+3. risk report (`workflow/scripts/risk-gate.py`, executed from the repository's protected default branch; CI publishes its verdict as the `risk-gate` status on the head commit and re-runs on review events);
+4. owner review at merge in the default policy; independent review only when `mode.review` is `risk-triggered` (material findings) or `human` (every PR), plus the milestone audit (`workflow/REVIEW.md`);
 5. merge per `workflow/config.json` mode, under the procedure in `workflow/REVIEW.md` §1.1 — `auto` is a permission for the executing agent, not a runner.
 
-**Gate:** verification clean or every exception recorded; verifier `pass`; no unresolved risk trigger.
+**Gate:** verification clean or every exception recorded; verifier `pass`; no unresolved *blocking* risk decision. In the default advisory mode, findings are reported and the owner's merge accepts them; in a strict mode, the required approval is recorded as the `risk-gate` status on the exact head.
 
 ### Phase 4 — Close and measure
 
@@ -116,7 +116,7 @@ proposed → approved → claimed → in-progress → verified → delivered →
 | claimed → in-progress | preflight report: modules touched, unresolved dependencies, verification path |
 | in-progress → verified | every criterion has evidence; integrity checks pass |
 | verified → delivered | declaration complete; exceptions justified |
-| delivered → merged | gates green; no unresolved risk trigger |
+| delivered → merged | required checks green; risk findings reported; in a strict review mode, an independent approval recorded on the exact head |
 | merged → measured | changelog line and calibration row written |
 
 ## 7. Types and complexity
@@ -161,6 +161,7 @@ An unresolved role fails closed at the pre-merge gate. It never silently skips.
 - Call a package complete on the strength of a summary.
 - Split a package because context is running out.
 - Accept a green run as proof that a test proves anything.
+- Treat a reported advisory risk finding as a failed verification check.
 - Resolve a contradiction silently.
 - Treat a token estimate as an authorized limit.
 - Remove a human gate without replacing it with a check.
@@ -173,3 +174,4 @@ An unresolved role fails closed at the pre-merge gate. It never silently skips.
 | 2.0.0 | 2026-10-25 | Human gates collapsed to intake, digest and risk triggers; all other gates are checks. Adds close/measure, ledger and changelog authority, and command roles. |
 | 2.0.1 | 2026-10-24 | Risk scan is fail-closed; merge is a documented agent procedure, not a runner. |
 | 2.1.0 | 2026-10-24 | The risk gate is review-aware: blocked until an authorized approval on the exact head commit, re-evaluated on review events. |
+| 2.2.0 | 2026-10-25 | Solo default: owner merge with advisory risk findings. Strict independent review and automatic merging are opt-in. |

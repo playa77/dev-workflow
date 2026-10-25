@@ -1,4 +1,4 @@
-<!-- state-spec | v2.0.0 | 2026-10-25 | intake state; ledger on resume; user-visible effect -->
+<!-- state-spec | v2.2.0 | 2026-10-25 | intake state; ledger on resume; risk verdict includes advisory -->
 # State — intake, checkpoints, resume
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** executor writes, verifier and operator read · **Normative for:** `intake.json`, `progress.md`, `state.json`
@@ -90,7 +90,7 @@ Rules: update at milestones and before an interruption; a criterion is checked o
   ],
   "verification": {"command": "make test-affected", "last_run": "2026-10-25T14:02:00Z", "result": "pass"},
   "integrity": {"snapshot": "workflow/state/test-baseline.json", "verify": "pass", "stash_check": "not-applicable"},
-  "risk": {"requires_human": false, "triggers": []},
+  "risk": {"mode": "advisory", "verdict": "pass", "requires_human": false, "triggers": []},
   "blockers": []
 }
 ```
@@ -102,7 +102,7 @@ Rules: update at milestones and before an interruption; a criterion is checked o
 | `decisions` | IDs added or relied on by this package; `check-changelog.py` resolves them |
 | `criteria[].passes` | True only with non-null `evidence` |
 | `verification.result` | `pass` \| `fail` \| `not-run` |
-| `risk` | Output of `risk-gate.py` at close (`pass` / `blocked` / `approved`) |
+| `risk` | Output of `risk-gate.py` at close: `mode`, `verdict` (`pass` / `advisory` / `approved` / `blocked`) and the reported findings |
 | `blockers` | Each names the blocker and what would unblock it |
 
 Invariants: every brief criterion appears with the same id; no `passes: true` with null evidence; `verified` implies all pass and verification `pass`; `revision` reachable from `branch`; `user_visible` is a boolean and `decisions` is a list of valid ids; `user_visible` true implies a changelog line exists after close. `check-state.py` enforces these.
@@ -129,3 +129,4 @@ Invariants: every brief criterion appears with the same id; no `passes: true` wi
 |---|---|---|
 | 1.0.0 | 2026-10-24 | Initial. |
 | 2.0.0 | 2026-10-25 | Adds `intake.json`, `user_visible`, `decisions`, risk block; resume reads the ledger index. |
+| 2.2.0 | 2026-10-25 | The risk block records the review mode and the advisory verdict. |

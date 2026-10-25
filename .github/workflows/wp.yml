@@ -2,6 +2,12 @@
 # workflow/scripts/install.py. The kit has no DECISIONS.md or CHANGELOG.md of its
 # own, so those two lanes are absent here and present in an installed project.
 #
+# Risk policy is `mode.review` in workflow/config.json, read from the protected
+# default branch at run time. The default `advisory` reports findings and
+# publishes a green `risk-gate` status: findings never fail required checks and
+# the owner's merge accepts them. `risk-triggered` and `human` are opt-in and
+# publish failure until an independent approval of the exact head commit exists.
+#
 # Trust boundary: the risk job runs the gate implementation (risk-gate.py,
 # risk-scan.py and workflow/config.json) from the repository's protected default
 # branch. The pull request head is fetched and inspected as a git diff; the gate
@@ -96,7 +102,7 @@ jobs:
         run: |
           git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/remotes/pull/head"
           test "$(git rev-parse refs/remotes/pull/head)" = "$HEAD_SHA"
-      - name: Risk gate
+      - name: Risk gate (advisory by default; strict modes opt-in)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}

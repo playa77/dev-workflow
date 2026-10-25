@@ -39,71 +39,115 @@ def review(login, state="APPROVED", commit=HEAD, at="2026-10-24T10:00:00Z",
 
 
 RISK = {"requires_human": True, "triggers": [{"class": "security", "path": "src/auth/x.py",
-                                              "reason": "path matches a security trigger"}]}
+                                              "reason": "path matches a security trigger",
+                                              "severity": "high"}]}
 SAFE = {"requires_human": False, "triggers": []}
+BOOKKEEPING = {"requires_human": False, "triggers": [
+    {"class": "bookkeeping", "path": "DECISIONS.md",
+     "reason": "path matches a bookkeeping trigger", "severity": "info"}]}
+UNSEVERITY = {"requires_human": True, "triggers": [
+    {"class": "custom", "path": "src/x.py", "reason": "custom trigger"}]}
 
 
 class DecisionTest(unittest.TestCase):
-    def decide(self, result, reviews, author="agent", allowed=("alice",)):
-        return GATE.decide(result, reviews, HEAD, author, lambda user: user in allowed)
+    def decide(self, result, reviews, author="agent", allowed=("alice",),
+               mode="advisory"):
+        return GATE.decide(result, reviews, HEAD, author,
+                           lambda user: user in allowed, review_mode=mode)
 
     def test_no_risk_passes_without_an_approval(self):
         decision = self.decide(SAFE, None)
         self.assertEqual(decision["verdict"], "pass")
+        self.assertFalse(decision["requires_approval"])
 
-    def test_risk_without_reviews_blocks(self):
+    def test_risk_is_advisory_by_default_and_never_blocks(self):
+        decision = self.decide(RISK, None)
+        self.assertEqual(decision["verdict"], "advisory")
+        self.assertTrue(decision["risk_detected"])
+        self.assertTrue(decision["requires_human"])
+        self.assertFalse(decision["requires_approval"])
+        self.assertEqual(len(decision["triggers"]), 1)
+
+    def test_advisory_mode_needs_no_review_context(self):
         decision = self.decide(RISK, [])
+        self.assertEqual(decision["verdict"], "advisory")
+
+    def test_risk_without_reviews_blocks_in_strict_mode(self):
+        decision = self.decide(RISK, [], mode="risk-triggered")
         self.assertEqual(decision["verdict"], "blocked")
         self.assertEqual(decision["approvals"], [])
+        self.assertTrue(decision["requires_approval"])
 
-    def test_risk_without_pr_context_blocks(self):
-        decision = self.decide(RISK, None)
+    def test_risk_without_pr_context_blocks_in_strict_mode(self):
+        decision = self.decide(RISK, None, mode="risk-triggered")
         self.assertEqual(decision["verdict"], "blocked")
 
-    def test_approval_on_head_passes(self):
-        decision = self.decide(RISK, [review("alice")])
+    def test_approval_on_head_passes_in_strict_mode(self):
+        decision = self.decide(RISK, [review("alice")], mode="risk-triggered")
         self.assertEqual(decision["verdict"], "approved")
         self.assertEqual([a["user"] for a in decision["approvals"]], ["alice"])
 
     def test_approval_on_an_earlier_commit_blocks(self):
-        decision = self.decide(RISK, [review("alice", commit=OLD)])
+        decision = self.decide(RISK, [review("alice", commit=OLD)], mode="risk-triggered")
         self.assertEqual(decision["verdict"], "blocked")
 
     def test_author_cannot_approve_their_own_pr(self):
-        decision = self.decide(RISK, [review("agent")], author="agent", allowed=("agent", "alice"))
+        decision = self.decide(RISK, [review("agent")], author="agent",
+                               allowed=("agent", "alice"), mode="risk-triggered")
         self.assertEqual(decision["verdict"], "blocked")
 
     def test_unauthorized_reviewer_blocks(self):
-        decision = self.decide(RISK, [review("mallory")])
+        decision = self.decide(RISK, [review("mallory")], mode="risk-triggered")
         self.assertEqual(decision["verdict"], "blocked")
 
     def test_changes_requested_after_approval_blocks(self):
         reviews = [review("alice", at="2026-10-24T10:00:00Z"),
                    review("alice", state="CHANGES_REQUESTED", at="2026-10-24T11:00:00Z")]
-        decision = self.decide(RISK, reviews)
+        decision = self.decide(RISK, reviews, mode="risk-triggered")
         self.assertEqual(decision["verdict"], "blocked")
 
     def test_dismissed_approval_blocks(self):
         reviews = [review("alice", at="2026-10-24T10:00:00Z"),
                    review("alice", state="DISMISSED", at="2026-10-24T11:00:00Z")]
-        decision = self.decide(RISK, reviews)
+        decision = self.decide(RISK, reviews, mode="risk-triggered")
         self.assertEqual(decision["verdict"], "blocked")
 
     def test_comment_after_approval_does_not_revoke_it(self):
         reviews = [review("alice", at="2026-10-24T10:00:00Z"),
                    review("alice", state="COMMENTED", at="2026-10-24T11:00:00Z")]
-        decision = self.decide(RISK, reviews)
+        decision = self.decide(RISK, reviews, mode="risk-triggered")
         self.assertEqual(decision["verdict"], "approved")
 
     def test_bot_approval_blocks(self):
         decision = self.decide(RISK, [review("dependabot[bot]", user_type="Bot")],
-                               allowed=("dependabot[bot]",))
+                               allowed=("dependabot[bot]",), mode="risk-triggered")
         self.assertEqual(decision["verdict"], "blocked")
 
     def test_two_approvers_yield_two_entries(self):
         decision = self.decide(RISK, [review("alice"), review("bob")],
-                               allowed=("alice", "bob"))
+                               allowed=("alice", "bob"), mode="risk-triggered")
         self.assertEqual([a["user"] for a in decision["approvals"]], ["alice", "bob"])
+
+    def test_bookkeeping_finding_is_not_material_in_strict_mode(self):
+        decision = self.decide(BOOKKEEPING, None, mode="risk-triggered")
+        self.assertEqual(decision["verdict"], "pass")
+        self.assertFalse(decision["requires_human"])
+        self.assertFalse(decision["requires_approval"])
+
+    def test_missing_severity_is_treated_as_material(self):
+        decision = self.decide(UNSEVERITY, None, mode="risk-triggered")
+        self.assertEqual(decision["verdict"], "blocked")
+        self.assertTrue(decision["requires_approval"])
+
+    def test_human_mode_requires_approval_even_without_a_finding(self):
+        decision = self.decide(SAFE, [], mode="human")
+        self.assertEqual(decision["verdict"], "blocked")
+        self.assertTrue(decision["requires_approval"])
+        self.assertEqual(decision["triggers"], [])
+
+    def test_human_mode_approval_on_head_passes(self):
+        decision = self.decide(SAFE, [review("alice")], mode="human")
+        self.assertEqual(decision["verdict"], "approved")
 
 
 class FakeGitHub(BaseHTTPRequestHandler):
@@ -162,9 +206,14 @@ class RiskGateHttpTest(unittest.TestCase):
                                    capture_output=True, text=True, check=True).stdout.strip()
         # The gate runs from the base commit; the pull request head is data.
         subprocess.run(["git", "checkout", "-q", self.base_ref], cwd=self.dir, check=True)
+        # The default HTTP fixture exercises the opt-in strict policy, where an
+        # approval is required. Individual tests switch to advisory or human.
+        self.write_config("risk-triggered")
+        self.summary = self.dir / "summary.md"
 
         FakeGitHub.requests = []
         FakeGitHub.head = self.head
+        FakeGitHub.permission = "admin"
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), FakeGitHub)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -174,8 +223,17 @@ class RiskGateHttpTest(unittest.TestCase):
         self.server.server_close()
         self.tmp.cleanup()
 
+    def write_config(self, review_mode, approvers=None):
+        cfg = self.dir / "workflow" / "config.json"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text(json.dumps({
+            "mode": {"review": review_mode},
+            "review": {"approvers": approvers or []},
+        }), encoding="utf-8")
+
     def run_gate(self):
         env = dict(os.environ, GITHUB_TOKEN="test-token", GITHUB_API_URL=self.base,
+                   GITHUB_STEP_SUMMARY=str(self.summary),
                    PYTHONDONTWRITEBYTECODE="1")
         return subprocess.run(
             [sys.executable, str(SCRIPTS / "risk-gate.py"), "--base", self.base_ref,
@@ -199,7 +257,7 @@ class RiskGateHttpTest(unittest.TestCase):
         self.assertEqual(posts[0][3]["state"], "success")
         self.assertEqual(posts[0][3]["context"], "risk-gate")
         gets = [r for r in FakeGitHub.requests if r[0] == "GET"]
-        self.assertTrue(all(r[2].get("User-Agent") == "workflow-kit/2.1 risk-gate" for r in gets),
+        self.assertTrue(all(r[2].get("User-Agent") == "workflow-kit/2.2 risk-gate" for r in gets),
                         [r[2].get("User-Agent") for r in gets])
 
     def test_no_approval_publishes_a_failure_status(self):
@@ -217,6 +275,51 @@ class RiskGateHttpTest(unittest.TestCase):
         proc = self.run_gate()
         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
         self.assertEqual(json.loads(proc.stdout)["verdict"], "blocked")
+
+    def test_advisory_mode_publishes_success_and_a_finding_summary(self):
+        self.write_config("advisory")
+        FakeGitHub.reviews = []
+        proc = self.run_gate()
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        decision = json.loads(proc.stdout)
+        self.assertEqual(decision["verdict"], "advisory")
+        self.assertFalse(decision["requires_approval"])
+        posts = self.status_post()
+        self.assertEqual(len(posts), 1, FakeGitHub.requests)
+        self.assertEqual(posts[0][3]["state"], "success")
+        self.assertIn("advisory", posts[0][3]["description"])
+        # No approval lookup is needed in advisory mode.
+        self.assertFalse([r for r in FakeGitHub.requests if "/reviews" in r[1]])
+        summary = self.summary.read_text(encoding="utf-8")
+        self.assertIn("## Risk gate: `advisory`", summary)
+        self.assertIn("| high | `security` |", summary)
+        self.assertIn("**Advisory:**", summary)
+
+    def test_human_mode_blocks_without_an_approval(self):
+        self.write_config("human")
+        FakeGitHub.reviews = []
+        proc = self.run_gate()
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        decision = json.loads(proc.stdout)
+        self.assertEqual(decision["verdict"], "blocked")
+        self.assertTrue(decision["requires_approval"])
+        self.assertEqual(self.status_post()[0][3]["state"], "failure")
+
+    def test_human_mode_approval_on_head_publishes_success(self):
+        self.write_config("human")
+        FakeGitHub.reviews = [review("alice", commit=self.head)]
+        proc = self.run_gate()
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)["verdict"], "approved")
+
+    def test_an_unknown_review_mode_fails_closed(self):
+        self.write_config("not-a-mode")
+        FakeGitHub.reviews = []
+        proc = self.run_gate()
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        decision = json.loads(proc.stdout)
+        self.assertEqual(decision["verdict"], "blocked")
+        self.assertEqual(decision["mode"], "risk-triggered")
 
 
 class RunRoleTest(unittest.TestCase):
@@ -295,6 +398,26 @@ class DoctorCiPolicyTest(unittest.TestCase):
     def test_fresh_install_passes(self):
         proc = self.doctor()
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_fresh_install_uses_the_solo_defaults(self):
+        cfg = json.loads((self.dir / "workflow" / "config.json").read_text(encoding="utf-8"))
+        self.assertEqual(cfg["mode"]["merge"], "human")
+        self.assertEqual(cfg["mode"]["review"], "advisory")
+
+    def test_doctor_reports_the_advisory_default(self):
+        proc = self.doctor()
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("review mode: advisory (solo default)", proc.stdout)
+
+    def test_doctor_reports_the_strict_mode_and_its_identity_cost(self):
+        path = self.dir / "workflow" / "config.json"
+        cfg = json.loads(path.read_text(encoding="utf-8"))
+        cfg["mode"]["review"] = "risk-triggered"
+        path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+        proc = self.doctor()
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("review mode: risk-triggered (opt-in)", proc.stdout)
+        self.assertIn("second GitHub identity", proc.stdout)
 
     def test_workflow_without_the_gate_fails_doctor(self):
         ci = self.dir / ".github" / "workflows" / "wp.yml"

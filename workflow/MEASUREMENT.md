@@ -1,4 +1,4 @@
-<!-- measurement-spec | v2.0.1 | 2026-10-24 | agent-generated ledger; no operator memory -->
+<!-- measurement-spec | v2.2.0 | 2026-10-25 | agent-generated ledger; risk findings measured by severity -->
 # Measurement — calibration, digest, retro
 
 **Status:** Approved · **Owner:** Operator · **Consumer:** agent writes, operator reads at milestones · **Normative for:** per-WP telemetry, calibration, retro
@@ -24,7 +24,7 @@ The roadmap's sizing is a hypothesis. This document is how it gets corrected and
 | `test_files_touched` | `wp-stats.sh` | churn in the suite |
 | `loc_net_impl`, `loc_net_tests` | `wp-stats.sh` | growth by category |
 | `verify_seconds` | `TEST_FULL` duration | whether validation is affordable |
-| `risk_triggers` | `risk-scan.py` | how often human review is demanded |
+| `risk_triggers` | `risk-scan.py` | reported findings per WP, material vs bookkeeping |
 
 Self-reported fields are marked in the ledger. Machine fields are generated. Never mix them without the marker. **No field depends on the operator's memory.**
 
@@ -49,7 +49,7 @@ WP-001,deterministic,one-pass,6.5,4.2,140,1,0,1,18,9,1,420,180,95,none,active_ho
 | Tests added per WP falling while scope holds | 3 WPs | verification traded away |
 | `verify_seconds` doubling | once | suite becoming something people avoid |
 | Review rounds | > 2 | acceptance criteria not testable enough |
-| Risk triggers on most WPs | 3 in 10 | the trigger list is too broad, or the repo is high-risk and should merge by review |
+| Risk findings on most WPs | 3 in 10 | the classification is too broad, or the repo genuinely needs a strict review mode |
 | Same correction twice | any | a rule belongs in `AGENTS.md` or a hook |
 
 A signal is a prompt to look, not a verdict.
@@ -88,3 +88,4 @@ The operator reads this page at the milestone. That is the review cadence in `wo
 | 1.0.0 | 2026-10-24 | Initial. |
 | 2.0.0 | 2026-10-25 | Agent-generated rows; risk-trigger field; milestone digest replaces the operator-answered retro. |
 | 2.0.1 | 2026-10-24 | Milestone cadence points at `workflow/REVIEW.md` §3 instead of a decision id the project ledger does not contain. |
+| 2.2.0 | 2026-10-25 | Measures reported risk findings by severity; the default policy reports without blocking. |

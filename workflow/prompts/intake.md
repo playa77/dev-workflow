@@ -1,4 +1,4 @@
-<!-- intake-prompt | v2.0.0 | 2026-10-25 | coverage map; no confidence percentage -->
+<!-- intake-prompt | v2.2.0 | 2026-10-25 | coverage map; no confidence percentage; operating mode in the digest -->
 # Phase 0 — Intake
 
 **Goal:** a complete coverage map of what is being built, with every unresolved topic closed by an answer, a default with a blast radius, or a deferral with a resolving work package. **No design.**
@@ -43,7 +43,7 @@ Statuses:
 When `open == 0` and `python3 workflow/scripts/check-intake.py` passes:
 
 1. Write `workflow/state/intake.json`.
-2. Write the one-page digest from `workflow/templates/digest.md` to `docs/process/DIGEST.md`: what is being built, the constraint ledger, non-goals, deferrals, the riskiest assumptions, and the decisions taken so far (as `D-nnn` entries in `DECISIONS.md`).
+2. Write the one-page digest from `workflow/templates/digest.md` to `docs/process/DIGEST.md`: what is being built, the constraint ledger, non-goals, deferrals, the riskiest assumptions, the decisions taken so far (as `D-nnn` entries in `DECISIONS.md`), and the operating mode (`mode.merge`, `mode.review`). The default is `human` + `advisory`; any stricter review or automatic merge is an explicit operator decision recorded there.
 3. Present the digest and **stop**. Do not begin the spec pass in the same turn.
 
 If the operator corrects the digest, update the topics and the digest, re-run the check, and present again. Do not proceed on silence.
