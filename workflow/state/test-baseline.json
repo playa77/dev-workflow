@@ -1,6 +1,6 @@
 {
   "branch": "feat/solo-review-default",
-  "created": "2026-10-25T07:29:18+00:00",
+  "created": "2026-10-25T07:31:23+00:00",
   "files": {
     "tests/test_changelog.py": {
       "sha256": "754d65efdbc2eca254224f9906c2df5482e2e5b145a1a1cb15f6b3e6da06ff43",
@@ -13,9 +13,9 @@
       "tests": 2
     },
     "tests/test_gates.py": {
-      "sha256": "a5937b26521e24bc3f1895472995a1fe7b32c7e3344a5d56fc66a475efb8bdc5",
+      "sha256": "11760ea25f306ba0bad77172a8f3ea18d9fa6df060bdeb049a65ed9402d27348",
       "skips": 0,
-      "tests": 14
+      "tests": 16
     },
     "tests/test_install_contract.py": {
       "sha256": "552e2a8ebde9fd9919abd157f6c500962c0fd3ec12e1ce03ecf91b8755ce5af5",
@@ -43,7 +43,7 @@
       "tests": 6
     }
   },
-  "revision": "e76e1f3",
+  "revision": "a2b473d",
   "stack": "python",
   "version": 1
 }

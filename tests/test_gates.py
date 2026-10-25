@@ -231,5 +231,32 @@ class RoadmapTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
 
 
+class NoAssertLintTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def lint(self, body):
+        path = self.dir / "test_x.py"
+        path.write_text(body, encoding="utf-8")
+        return run("no_assert_lint.py", str(path))
+
+    def test_unittest_assertion_methods_count_as_assertions(self):
+        proc = self.lint(
+            "import unittest\n\n\nclass T(unittest.TestCase):\n"
+            "    def test_x(self):\n        self.assertFalse(False)\n")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_a_test_body_without_an_assertion_is_flagged(self):
+        proc = self.lint(
+            "import unittest\n\n\nclass T(unittest.TestCase):\n"
+            "    def test_x(self):\n        value = 1\n")
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("has no assertion", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
